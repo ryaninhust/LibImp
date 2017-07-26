@@ -34,9 +34,9 @@ public:
 class Parameter {
 
 public:
-    FtrlFloat lambda;
+    FtrlFloat lambda, w, a;
     FtrlInt nr_pass, k, nr_threads;
-    Parameter():lambda(0.1), nr_pass(20), k(10),nr_threads(1) {};
+    Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1) {};
 };
 
 
@@ -70,6 +70,11 @@ public:
     FtrlDouble obj, reg, tr_loss, va_loss;
     FtrlFloat start_time;
 
+    vector<FtrlFloat> w2_sum, h2_sum;
+    vector<FtrlFloat> w_sum, h_sum;
+    vector<FtrlFloat> wu, hv;
+
+
     FtrlDouble cal_loss(FtrlLong &l, vector<Node> &R);
     FtrlDouble cal_reg();
     FtrlDouble cal_tr_loss(FtrlLong &l, vector<Node> &R);
@@ -78,8 +83,18 @@ public:
     void initialize();
     void solve();
     void update_R();
+
+    void validate(const FtrlInt &topk);
+    void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
+    FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
+
+    void cache_w(FtrlInt &d);
+    void cache_h(FtrlInt &d);
+
     void update_coordinates();
     void print_epoch_info();
     void print_header_info();
+
+    bool is_hit(const vector<Node*> p, FtrlLong argmax);
 };
 

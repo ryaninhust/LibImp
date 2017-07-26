@@ -1,6 +1,8 @@
 #include "mf.h"
 
-double inner(double *a, double *b, int k)
+#define MIN_Z -10000;
+
+double inner(const double *a, const double *b, const int k)
 {
     double r = 0.0;
     for (int i = 0; i < k; i++)
@@ -55,8 +57,19 @@ void FtrlProblem::initialize() {
     FtrlInt k = param->k;
     t = 0;
     tr_loss = 0.0, va_loss = 0.0, obj = 0.0, reg=0.0;
+
     W.resize(k*m);
     H.resize(k*n);
+
+    w2_sum.resize(k);
+    h2_sum.resize(k);
+
+    w_sum.resize(k);
+    h_sum.resize(k);
+
+    wu.resize(k);
+    hv.resize(k);
+
 
     default_random_engine engine(0);
     uniform_real_distribution<FtrlFloat> distribution(0, 1.0/sqrt(k));
@@ -74,33 +87,20 @@ void FtrlProblem::initialize() {
 void FtrlProblem::print_header_info() {
     cout.width(4);
     cout << "iter";
-    cout.width(13);
-    cout << "tr_rmse";
     if (!test_data->file_name.empty()) {
         cout.width(13);
-        cout << "va_rmse";
+        cout << "va_p@10";
     }
-    cout.width(13);
-    cout << "obj";
-    cout.width(13);
-    cout << "reg";
     cout << "\n";
 }
 
 void FtrlProblem::print_epoch_info() {
     cout.width(4);
     cout << t+1;
-    cout.width(13);
-    cout << fixed << setprecision(4);
-    cout << setprecision(4) << tr_loss;
     if (!test_data->file_name.empty()) {
         cout.width(13);
         cout << setprecision(4) << va_loss;
     }
-    cout.width(13);
-    cout << scientific << obj;
-    cout.width(13);
-    cout << scientific << reg;
     cout << "\n";
 } 
 
@@ -108,7 +108,7 @@ void FtrlProblem::print_epoch_info() {
 void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     
     FtrlInt k = param->k;
-    FtrlFloat lambda = param->lambda;
+    FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &P = data->P;
     FtrlDouble w_val = W[i*k+d];
     FtrlDouble h = lambda*P[i].size(), g = 0;
@@ -116,9 +116,17 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = H[j*k+d];
-        g += (r+h_val*w_val)*h_val;
-        h += h_val*h_val;
+        g += ((1-w)*(r+h_val*w_val)+w*(1-a))*h_val;
+        h += (1-w)*h_val*h_val;
     }
+    h += w*h2_sum[d];
+
+    FtrlDouble wTh = 0;
+    for (FtrlInt d1 = 0; d1 < k; d1++) {
+        wTh += hv[d1]*W[i*k+d1];
+    }
+    g += w*(a*h_sum[d]-wTh+w_val*h2_sum[d]);
+
     FtrlDouble new_w_val = g/h;
     for (Node* p : P[i]) {
         FtrlLong j = p->q_idx;
@@ -130,7 +138,7 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
 
 void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     FtrlInt k = param->k;
-    FtrlFloat lambda = param->lambda;
+    FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &Q = data->Q;
     FtrlDouble h_val = H[j*k+d];
     FtrlDouble h = lambda*Q[j].size(), g = 0;
@@ -138,9 +146,17 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = W[i*k+d];
-        g += (r+h_val*w_val)*w_val;
-        h += w_val*w_val;
+        g += ((1-w)*(r+h_val*w_val)+w*(1-a))*w_val;
+        h += (1-w)*w_val*w_val;
     }
+    h += w*w2_sum[d];
+
+    FtrlFloat wTh = 0;
+    for (FtrlInt d1 = 0; d1 < k; d1++) {
+        wTh += wu[d1]*H[j*k+d1];
+    }
+    g += w*(a*w_sum[d]-wTh+h_val*w2_sum[d]);
+
     FtrlDouble new_h_val = g/h;
     for (Node* q : Q[j]) {
         FtrlLong i = q->p_idx;
@@ -176,6 +192,67 @@ FtrlDouble FtrlProblem::cal_tr_loss(FtrlLong &l, vector<Node> &R) {
     }
     return loss;
 }
+
+void FtrlProblem::validate(const FtrlInt &topk) {
+    FtrlInt k = param->k;
+    FtrlLong n = data->n, m = data->m;
+    vector<FtrlFloat> Z(n, 0);
+    const vector<vector<Node*>> &P = data->P;
+    const vector<vector<Node*>> &TP = test_data->P;
+    const FtrlFloat* Wp = W.data();
+    FtrlLong hit_count = 0;
+    FtrlLong valid_samples = 0;
+    for (FtrlLong i = 0; i < m; i++) {
+        const vector<Node*> p = P[i];
+        const vector<Node*> tp = TP[i];
+        if (!tp.size()) {
+            continue;
+        }
+        const FtrlFloat *w = Wp+i*k;
+        predict_candidates(w, Z);
+        hit_count += precision_k(Z, p, tp, topk);
+        valid_samples++;
+    }
+    va_loss = hit_count/double(valid_samples*topk);
+}
+
+void FtrlProblem::predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z) {
+    FtrlInt k = param->k;
+    FtrlLong n = data->n;
+    FtrlFloat *Hp = H.data();
+    for (FtrlLong j = 0; j < n; j++) {
+        Z[j] = inner(w, Hp+j*k, k);
+    }
+}
+
+bool FtrlProblem::is_hit(const vector<Node*> p, FtrlLong argmax) {
+    for (Node* pp : p) {
+        FtrlLong idx = pp->q_idx;
+        if (idx == argmax)
+            return true;
+    }
+    return false;
+}
+
+FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
+
+    FtrlInt valid_count = 0;
+    FtrlInt hit_count = 0;
+    while(valid_count < topk) {
+        FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+        if (is_hit(p, argmax)) {
+            Z[argmax] = MIN_Z;
+            continue;
+        }
+        if (is_hit(tp, argmax)) {
+            hit_count++;
+        }
+        valid_count++;
+        Z[argmax] = MIN_Z;
+    }
+    return hit_count;
+}
+
 
 FtrlDouble FtrlProblem::cal_reg() {
     FtrlInt k = param->k;
@@ -214,13 +291,51 @@ void FtrlProblem::update_coordinates() {
     FtrlInt k = param->k;
     FtrlLong m = data->m, n = data->n;
     for (FtrlInt d = 0; d < k; d++) {
+        cache_w(d);
         for (FtrlLong j = 0; j < n; j++) {
             update_h(j, d);
         }
+        cache_h(d);
         for (FtrlLong i = 0; i < m; i++) {
             update_w(i, d);
         }
     }
+}
+
+void FtrlProblem::cache_w(FtrlInt& d) {
+    FtrlLong m = data->m;
+    FtrlInt k = param->k;
+    FtrlFloat sq = 0, sum = 0;
+    for (FtrlInt di = 0; di < k; di++) {
+        wu[di] = 0;
+    }
+    for (FtrlInt j = 0; j < m; j++) {
+        sq +=  W[j*k+d]*W[j*k+d];
+        sum += W[j*k+d];
+        for (FtrlInt di = 0; di < k; di++) {
+            wu[di] += W[j*k+d]* W[j*k+di];
+        }
+    }
+    w_sum[d] = sum;
+    w2_sum[d] = sq;
+}
+
+void FtrlProblem::cache_h(FtrlInt& d) {
+    FtrlLong n = data->n;
+    FtrlInt k = param->k;
+    FtrlFloat sq = 0, sum = 0;
+    for (FtrlInt di = 0; di < k; di++) {
+        hv[di] = 0;
+    }
+    for (FtrlInt j = 0; j < n; j++) {
+        sq +=  H[j*k+d]*H[j*k+d];
+        sum += H[j*k+d];
+        for (FtrlInt di = 0; di < k; di++) {
+            hv[di] += H[j*k+d]* H[j*k+di];
+        }
+    }
+    h_sum[d] = sum;
+    h2_sum[d] = sq;
 }
 
 void FtrlProblem::solve() {
@@ -229,10 +344,8 @@ void FtrlProblem::solve() {
 
     for (t = 0; t < param->nr_pass; t++) {
         tr_loss = cal_tr_loss(data->l, data->R);
-        reg = cal_reg();
-        obj = tr_loss + reg;
-        tr_loss = sqrt(tr_loss/data->l);
-        va_loss = sqrt(cal_loss(test_data->l, test_data->R)/test_data->l);
+        cout << tr_loss << endl;
+        validate(10);
         print_epoch_info();
         update_coordinates();
     }

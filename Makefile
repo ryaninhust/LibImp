@@ -1,5 +1,9 @@
-CXX = g++-6
-CXXFLAGS = -Wall -O3 -std=c++0x -march=native
+CXX = g++
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	CXX = g++-6
+endif
+CXXFLAGS = -Wall -g -std=c++0x -march=native
 
 # comment the following flags if you do not want to use OpenMP
 DFLAG += -DUSEOMP

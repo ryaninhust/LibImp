@@ -45,6 +45,8 @@ string train_help()
     "-l <lambda_2>: set regularization coefficient on r regularizer (default 0.1)\n"
     "-t <iter>: set number of iterations (default 20)\n"
     "-p <path>: set path to test set\n"
+    "-w <path>: set weights to the negatives (default 1)\n"
+    "-a <path>: set labels to the negatives (default 0)\n"
     "-c <threads>: set number of cores\n"
     );
 }
@@ -97,6 +99,28 @@ Option parse_option(int argc, char **argv)
                 throw invalid_argument("-t should be followed by a number");
             option.param->nr_pass = atoi(argv[i]);
         }
+        else if(args[i].compare("-w") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify max number of\
+                                        iterations after -t");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-t should be followed by a number");
+            option.param->w = atof(argv[i]);
+        }
+        else if(args[i].compare("-a") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify max number of\
+                                        iterations after -t");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-t should be followed by a number");
+            option.param->a = atof(argv[i]);
+        }
         else if(args[i].compare("-c") == 0)
         {
             if((i+1) >= argc)
@@ -131,6 +155,7 @@ int main(int argc, char *argv[])
 {
     try
     {
+        feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
         Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
@@ -142,6 +167,7 @@ int main(int argc, char *argv[])
 
         if (!test_data->file_name.empty()) {
             test_data->read();
+            test_data->transpose();
             //test_data->print_data_info();
         }
 
