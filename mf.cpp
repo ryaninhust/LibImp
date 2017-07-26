@@ -169,7 +169,8 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
 
 FtrlDouble FtrlProblem::cal_loss(FtrlLong &l, vector<Node> &R) {
     FtrlInt k = param->k;
-    FtrlDouble loss = 0;
+    FtrlDouble loss = 0, a = param->a;
+    FtrlLong m = data->m, n = data->n;
 #pragma omp parallel for schedule(static) reduction(+:loss)
     for (FtrlLong i = 0; i < l; i++) {
         Node* node = &R[i];
@@ -179,6 +180,16 @@ FtrlDouble FtrlProblem::cal_loss(FtrlLong &l, vector<Node> &R) {
         FtrlDouble *h = H.data()+node->q_idx*k;
         FtrlDouble r = inner(w, h, k);
         loss += (r-node->val)*(r-node->val);
+        loss -= param->w*(a-r)*(a-r);
+    }
+#pragma omp parallel for schedule(static) reduction(+:loss)
+    for (FtrlLong i = 0; i < m; i++) {
+        for (FtrlLong j = 0; j < n; j++) {
+            FtrlDouble *w = W.data()+i*k;
+            FtrlDouble *h = H.data()+j*k;
+            FtrlDouble r = inner(w, h, k);
+            loss += param->k*(a-r)*(a-r);
+        }
     }
     return loss;
 }
@@ -343,8 +354,8 @@ void FtrlProblem::solve() {
     update_R();
 
     for (t = 0; t < param->nr_pass; t++) {
-        tr_loss = cal_tr_loss(data->l, data->R);
-        cout << tr_loss << endl;
+        tr_loss = cal_loss(data->l, data->R);
+        cout << tr_loss+cal_reg()<< endl;
         validate(10);
         print_epoch_info();
         update_coordinates();
