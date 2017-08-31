@@ -49,7 +49,6 @@ void FtrlData::print_data_info() {
     cout << "#n: " << n << "\t";
     cout << "#l: " << l << "\t";
     cout << endl;
-    cout << endl;
 }
 
 void FtrlProblem::initialize() {
