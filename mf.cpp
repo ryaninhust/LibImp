@@ -60,6 +60,9 @@ void FtrlProblem::initialize() {
     W.resize(k*m);
     H.resize(k*n);
 
+    WT.resize(k*m);
+    HT.resize(k*n);
+
     w2_sum.resize(k);
     h2_sum.resize(k);
 
@@ -75,10 +78,14 @@ void FtrlProblem::initialize() {
 
     for (FtrlInt d = 0; d < k; d++)
     {
-        for (FtrlLong j = 0; j < m; j++)
+        for (FtrlLong j = 0; j < m; j++) {
             W[j*k+d] = distribution(engine);
-        for (FtrlLong j = 0; j < n; j++)
+            WT[d*m+j] = W[j*k+d];
+        }
+        for (FtrlLong j = 0; j < n; j++) {
             H[j*k+d] = distribution(engine);
+            HT[d*n+j] = H[j*k+d];
+        }
     }
     start_time = omp_get_wtime();
 }
@@ -109,12 +116,13 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &P = data->P;
+    FtrlLong m = data->m, n = data->n;
     FtrlDouble w_val = W[i*k+d];
     FtrlDouble h = lambda*P[i].size(), g = 0;
     for (Node* p : P[i]) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
-        FtrlDouble h_val = H[j*k+d];
+        FtrlDouble h_val = HT[d*n+j];
         g += ((1-w)*(r+h_val*w_val)+w*(1-a))*h_val;
         h += (1-w)*h_val*h_val;
     }
@@ -129,22 +137,24 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     FtrlDouble new_w_val = g/h;
     for (Node* p : P[i]) {
         FtrlLong j = p->q_idx;
-        FtrlDouble h_val = H[j*k+d];
+        FtrlDouble h_val = HT[d*n+j];
         p->val += (w_val-new_w_val)*h_val;
     }
     W[i*k+d] = new_w_val;
+    WT[d*m+i] = new_w_val;
 }
 
 void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &Q = data->Q;
+    FtrlLong m = data->m, n = data->n;
     FtrlDouble h_val = H[j*k+d];
     FtrlDouble h = lambda*Q[j].size(), g = 0;
     for (Node* q : Q[j]) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
-        FtrlDouble w_val = W[i*k+d];
+        FtrlDouble w_val = WT[d*m+i];
         g += ((1-w)*(r+h_val*w_val)+w*(1-a))*w_val;
         h += (1-w)*w_val*w_val;
     }
@@ -159,10 +169,11 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     FtrlDouble new_h_val = g/h;
     for (Node* q : Q[j]) {
         FtrlLong i = q->p_idx;
-        FtrlDouble w_val = W[i*k+d];
+        FtrlDouble w_val = WT[d*m+i];
         q->val += (h_val-new_h_val)*w_val;
     }
     H[j*k+d] = new_h_val;
+    HT[d*n+j] = new_h_val;
 }
 
 
@@ -396,12 +407,15 @@ void FtrlProblem::solve() {
     print_header_info();
     update_R();
 
+    FtrlFloat stime = 0;
     for (t = 0; t < param->nr_pass; t++) {
         tr_loss = cal_loss(data->l, data->R);
         cout << tr_loss+cal_reg()<< endl;
-        validate(10);
         print_epoch_info();
+        FtrlFloat ss = omp_get_wtime();
         update_coordinates();
+        stime += (omp_get_wtime() - ss);
     }
+    cout << stime << endl;
 }
 

@@ -63,8 +63,8 @@ public:
         :data(data), test_data(test_data), param(param) {};
 
 
-    vector<FtrlFloat> W;
-    vector<FtrlFloat> H;
+    vector<FtrlFloat> W, H;
+    vector<FtrlFloat> WT, HT;
 
     FtrlInt t;
     FtrlDouble obj, reg, tr_loss, va_loss;
@@ -78,8 +78,10 @@ public:
     FtrlDouble cal_loss(FtrlLong &l, vector<Node> &R);
     FtrlDouble cal_reg();
     FtrlDouble cal_tr_loss(FtrlLong &l, vector<Node> &R);
+
     void update_w(FtrlLong i, FtrlInt d);
     void update_h(FtrlLong j, FtrlInt d);
+
     void initialize();
     void solve();
     void update_R();
