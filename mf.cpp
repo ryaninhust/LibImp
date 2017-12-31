@@ -187,7 +187,7 @@ FtrlDouble FtrlProblem::cal_loss(FtrlLong &l, vector<Node> &R) {
             FtrlDouble *w = W.data()+i*k;
             FtrlDouble *h = H.data()+j*k;
             FtrlDouble r = inner(w, h, k);
-            loss += param->k*(a-r)*(a-r);
+            loss += param->w*(a-r)*(a-r);
         }
     }
     return loss;
@@ -226,6 +226,29 @@ void FtrlProblem::validate(const FtrlInt &topk) {
     va_loss = hit_count/double(valid_samples*topk);
 }
 
+void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
+    FtrlInt k = param->k;
+    FtrlLong n = data->n, m = data->m;
+    vector<FtrlFloat> Z(n, 0);
+    const vector<vector<Node*>> &P = data->P;
+    const vector<vector<Node*>> &TP = test_data->P;
+    const FtrlFloat* Wp = W.data();
+    double ndcg = 0;
+    FtrlLong valid_samples = 0;
+    for (FtrlLong i = 0; i < m; i++) {
+        const vector<Node*> p = P[i];
+        const vector<Node*> tp = TP[i];
+        if (!tp.size()) {
+            continue;
+        }
+        const FtrlFloat *w = Wp+i*k;
+        predict_candidates(w, Z);
+        ndcg += ndcg_k(Z, p, tp, topk);
+        valid_samples++;
+    }
+    va_loss = ndcg/double(valid_samples);
+}
+
 void FtrlProblem::predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z) {
     FtrlInt k = param->k;
     FtrlLong n = data->n;
@@ -242,6 +265,27 @@ bool FtrlProblem::is_hit(const vector<Node*> p, FtrlLong argmax) {
             return true;
     }
     return false;
+}
+
+FtrlLong FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
+
+    FtrlInt valid_count = 0;
+    double dcg = 0.0;
+    double idcg = 0.0;
+    while(valid_count < topk) {
+        FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+        if (is_hit(p, argmax)) {
+            Z[argmax] = MIN_Z;
+            continue;
+        }
+        if (is_hit(tp, argmax))
+            dcg += 1/log2(valid_count+2);
+        if (int (tp.size()) > valid_count)
+           idcg += 1/log2(valid_count+2);
+        valid_count++;
+        Z[argmax] = MIN_Z;
+    }
+    return double(100*dcg/idcg);
 }
 
 FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
