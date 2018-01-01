@@ -19,7 +19,7 @@ using namespace std;
 typedef double FtrlFloat;
 typedef double FtrlDouble;
 typedef int FtrlInt;
-typedef long long FtrlLong;
+typedef int FtrlLong;
 
 
 class Node {

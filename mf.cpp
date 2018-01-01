@@ -114,11 +114,11 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     double time = omp_get_wtime();    
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<vector<Node*>> &P = data->P;
+    const vector<Node*> &P = data->P[i];
     FtrlLong m = data->m, n = data->n;
-    FtrlDouble w_val = W[i*k+d];
-    FtrlDouble h = lambda*P[i].size(), g = 0;
-    for (Node* p : P[i]) {
+    FtrlDouble w_val = WT[d*m+i];
+    FtrlDouble h = lambda*P.size(), g = 0;
+    for (Node* p : P) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
@@ -131,7 +131,7 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     FtrlDouble new_w_val = g/h;
     U_time += omp_get_wtime() - time;
     time = omp_get_wtime();
-    for (Node* p : P[i]) {
+    for (Node* p : P) {
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
         p->val += (w_val-new_w_val)*h_val;
@@ -145,11 +145,11 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     double time = omp_get_wtime();
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<vector<Node*>> &Q = data->Q;
+    const vector<Node*> &Q = data->Q[j];
     FtrlLong m = data->m, n = data->n;
-    FtrlDouble h_val = H[j*k+d];
-    FtrlDouble h = lambda*Q[j].size(), g = 0;
-    for (Node* q : Q[j]) {
+    FtrlDouble h_val = HT[d*n+j];
+    FtrlDouble h = lambda*Q.size(), g = 0;
+    for (Node* q : Q) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
@@ -162,7 +162,7 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     FtrlDouble new_h_val = g/h;
     U_time += omp_get_wtime() - time;
     time = omp_get_wtime();
-    for (Node* q : Q[j]) {
+    for (Node* q : Q) {
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
         q->val += (h_val-new_h_val)*w_val;
@@ -385,14 +385,15 @@ void FtrlProblem::cache_w(FtrlInt& d) {
     for (FtrlLong i = 0; i < n; i++) {
         wu[i] = 0;
     }
+    FtrlFloat *wt = WT.data() + d*m;
     for (FtrlInt j = 0; j < m; j++) {
-        sq +=  WT[d*m+j]*WT[d*m+j];
-        sum += WT[d*m+j];
+        sq +=  wt[j]*wt[j];
+        sum += wt[j];
     }
     for (FtrlInt di = 0; di < k; di++) {
         FtrlDouble uTWt = 0;
         for (FtrlLong j = 0; j < m; j++) {
-            uTWt += WT[d*m+j] * WT[di*m+j];
+            uTWt += wt[j] * WT[di*m+j];
         }
         for (FtrlLong i = 0; i < n; i++) {
             wu[i] += uTWt * HT[di*n+i];
@@ -409,14 +410,15 @@ void FtrlProblem::cache_h(FtrlInt& d) {
     for (FtrlLong j = 0; j < m; j++) {
         hv[j] = 0;
     }
+    FtrlFloat *ht = HT.data() + d*n;
     for (FtrlInt j = 0; j < n; j++) {
-        sq +=  HT[d*n+j]*HT[d*n+j];
-        sum += H[j*k+d];
+        sq +=  ht[j]*ht[j];
+        sum += ht[j];
     }
     for (FtrlInt di = 0; di < k; di++) {
         FtrlDouble uTWt = 0;
         for (FtrlLong i = 0; i < n; i++) {
-            uTWt += HT[d*n+i] * HT[di*n+i];
+            uTWt += ht[i] * HT[di*n+i];
         }
         for (FtrlLong j = 0; j < m; j++) {
             hv[j] += uTWt * WT[di*m+j];
