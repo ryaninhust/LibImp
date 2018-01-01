@@ -64,14 +64,8 @@ void FtrlProblem::initialize() {
     WT.resize(k*m);
     HT.resize(k*n);
 
-    w2_sum.resize(k);
-    h2_sum.resize(k);
-
-    w_sum.resize(k);
-    h_sum.resize(k);
-
-    wu.resize(k);
-    hv.resize(k);
+    wu.resize(n);
+    hv.resize(m);
 
 
     default_random_engine engine(0);
@@ -131,13 +125,8 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
         g += ((1-w)*(r+h_val*w_val)+w*(1-a))*h_val;
         h += (1-w)*h_val*h_val;
     }
-    h += w*h2_sum[d];
-
-    FtrlDouble wTh = 0;
-    for (FtrlInt d1 = 0; d1 < k; d1++) {
-        wTh += hv[d1]*W[i*k+d1];
-    }
-    g += w*(a*h_sum[d]-wTh+w_val*h2_sum[d]);
+    h += w*h2_sum;
+    g += w*(a*h_sum-hv[i]+w_val*h2_sum);
 
     FtrlDouble new_w_val = g/h;
     U_time += omp_get_wtime() - time;
@@ -167,13 +156,8 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
         g += ((1-w)*(r+h_val*w_val)+w*(1-a))*w_val;
         h += (1-w)*w_val*w_val;
     }
-    h += w*w2_sum[d];
-
-    FtrlFloat wTh = 0;
-    for (FtrlInt d1 = 0; d1 < k; d1++) {
-        wTh += wu[d1]*H[j*k+d1];
-    }
-    g += w*(a*w_sum[d]-wTh+h_val*w2_sum[d]);
+    h += w*w2_sum;
+    g += w*(a*w_sum-wu[j]+h_val*w2_sum);
 
     FtrlDouble new_h_val = g/h;
     U_time += omp_get_wtime() - time;
@@ -376,7 +360,8 @@ void FtrlProblem::update_coordinates() {
             H_time += omp_get_wtime() - time;
             time = omp_get_wtime();
             for (FtrlLong j = 0; j < n; j++) {
-                update_h(j, d);
+                if (data->Q[j].size())
+                    update_h(j, d);
             }
             H_time += omp_get_wtime() - time;
             time = omp_get_wtime();
@@ -385,7 +370,8 @@ void FtrlProblem::update_coordinates() {
             W_time += omp_get_wtime() - time;
             time = omp_get_wtime();
             for (FtrlLong i = 0; i < m; i++) {
-                update_w(i, d);
+                if (data->P[i].size())
+                    update_w(i, d);
             }
             W_time += omp_get_wtime() - time;
         }
@@ -393,39 +379,52 @@ void FtrlProblem::update_coordinates() {
 }
 
 void FtrlProblem::cache_w(FtrlInt& d) {
-    FtrlLong m = data->m;
+    FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
-    for (FtrlInt di = 0; di < k; di++) {
-        wu[di] = 0;
+    for (FtrlLong i = 0; i < n; i++) {
+        wu[i] = 0;
     }
     for (FtrlInt j = 0; j < m; j++) {
-        sq +=  W[j*k+d]*W[j*k+d];
-        sum += W[j*k+d];
-        for (FtrlInt di = 0; di < k; di++) {
-            wu[di] += W[j*k+d]* W[j*k+di];
+        sq +=  WT[d*m+j]*WT[d*m+j];
+        sum += WT[d*m+j];
+    }
+    for (FtrlInt di = 0; di < k; di++) {
+        FtrlDouble uTWt = 0;
+        for (FtrlLong j = 0; j < m; j++) {
+            uTWt += WT[d*m+j] * WT[di*m+j];
+        }
+        for (FtrlLong i = 0; i < n; i++) {
+            wu[i] += uTWt * HT[di*n+i];
         }
     }
-    w_sum[d] = sum;
-    w2_sum[d] = sq;
+    w_sum = sum;
+    w2_sum = sq;
 }
 
 void FtrlProblem::cache_h(FtrlInt& d) {
-    FtrlLong n = data->n;
+    FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
-    for (FtrlInt di = 0; di < k; di++) {
-        hv[di] = 0;
+    for (FtrlLong j = 0; j < m; j++) {
+        hv[j] = 0;
     }
     for (FtrlInt j = 0; j < n; j++) {
-        sq +=  H[j*k+d]*H[j*k+d];
+        sq +=  HT[d*n+j]*HT[d*n+j];
         sum += H[j*k+d];
-        for (FtrlInt di = 0; di < k; di++) {
-            hv[di] += H[j*k+d]* H[j*k+di];
+    }
+    for (FtrlInt di = 0; di < k; di++) {
+        FtrlDouble uTWt = 0;
+        for (FtrlLong i = 0; i < n; i++) {
+            uTWt += HT[d*n+i] * HT[di*n+i];
+        }
+        for (FtrlLong j = 0; j < m; j++) {
+            hv[j] += uTWt * WT[di*m+j];
         }
     }
-    h_sum[d] = sum;
-    h2_sum[d] = sq;
+
+    h_sum = sum;
+    h2_sum = sq;
 }
 
 void FtrlProblem::solve() {
@@ -437,7 +436,6 @@ void FtrlProblem::solve() {
         tr_loss = cal_loss(data->l, data->R);
         cout << tr_loss+cal_reg()<< endl;
         print_epoch_info();
-        validate_ndcg(10);
         FtrlFloat ss = omp_get_wtime();
         update_coordinates();
         stime += (omp_get_wtime() - ss);
