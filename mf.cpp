@@ -115,11 +115,11 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<vector<Node*>> &P = data->P;
+    const vector<Node*> &P = data->P[i];
     FtrlLong m = data->m, n = data->n;
     FtrlDouble w_val = W[i*k+d];
-    FtrlDouble h = lambda*P[i].size(), g = 0;
-    for (Node* p : P[i]) {
+    FtrlDouble h = lambda*P.size(), g = 0;
+    for (Node* p : P) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
@@ -135,7 +135,7 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     g += w*(a*h_sum[d]-wTh+w_val*h2_sum[d]);
 
     FtrlDouble new_w_val = g/h;
-    for (Node* p : P[i]) {
+    for (Node* p : P) {
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
         p->val += (w_val-new_w_val)*h_val;
@@ -147,11 +147,11 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
 void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<vector<Node*>> &Q = data->Q;
+    const vector<Node*> &Q = data->Q[j];
     FtrlLong m = data->m, n = data->n;
     FtrlDouble h_val = H[j*k+d];
-    FtrlDouble h = lambda*Q[j].size(), g = 0;
-    for (Node* q : Q[j]) {
+    FtrlDouble h = lambda*Q.size(), g = 0;
+    for (Node* q : Q) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
@@ -167,7 +167,7 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     g += w*(a*w_sum[d]-wTh+h_val*w2_sum[d]);
 
     FtrlDouble new_h_val = g/h;
-    for (Node* q : Q[j]) {
+    for (Node* q : Q) {
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
         q->val += (h_val-new_h_val)*w_val;
@@ -358,11 +358,13 @@ void FtrlProblem::update_coordinates() {
     for (FtrlInt d = 0; d < k; d++) {
         cache_w(d);
         for (FtrlLong j = 0; j < n; j++) {
-            update_h(j, d);
+            if (data->Q[j].size())
+                update_h(j, d);
         }
         cache_h(d);
         for (FtrlLong i = 0; i < m; i++) {
-            update_w(i, d);
+            if (data->P[i].size())
+                update_w(i, d);
         }
     }
 }
@@ -375,10 +377,10 @@ void FtrlProblem::cache_w(FtrlInt& d) {
         wu[di] = 0;
     }
     for (FtrlInt j = 0; j < m; j++) {
-        sq +=  W[j*k+d]*W[j*k+d];
-        sum += W[j*k+d];
+        sq +=  WT[d*m+j]*WT[d*m+j];
+        sum += WT[d*m+j];
         for (FtrlInt di = 0; di < k; di++) {
-            wu[di] += W[j*k+d]* W[j*k+di];
+            wu[di] += WT[d*m+j]* W[j*k+di];
         }
     }
     w_sum[d] = sum;
@@ -393,10 +395,10 @@ void FtrlProblem::cache_h(FtrlInt& d) {
         hv[di] = 0;
     }
     for (FtrlInt j = 0; j < n; j++) {
-        sq +=  H[j*k+d]*H[j*k+d];
+        sq +=  HT[d*n+j]*HT[d*n+j];
         sum += H[j*k+d];
         for (FtrlInt di = 0; di < k; di++) {
-            hv[di] += H[j*k+d]* H[j*k+di];
+            hv[di] += HT[d*n+j]* H[j*k+di];
         }
     }
     h_sum[d] = sum;
