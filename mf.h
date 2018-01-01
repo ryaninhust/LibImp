@@ -69,6 +69,7 @@ public:
     FtrlInt t;
     FtrlDouble obj, reg, tr_loss, va_loss;
     FtrlFloat start_time;
+    FtrlFloat U_time, C_time, W_time, H_time, I_time, R_time;
 
     vector<FtrlFloat> w2_sum, h2_sum;
     vector<FtrlFloat> w_sum, h_sum;

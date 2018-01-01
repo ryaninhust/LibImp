@@ -52,11 +52,12 @@ void FtrlData::print_data_info() {
 }
 
 void FtrlProblem::initialize() {
+    double time = omp_get_wtime();
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     t = 0;
     tr_loss = 0.0, va_loss = 0.0, obj = 0.0, reg=0.0;
-
+    U_time = 0.0, C_time = 0.0, I_time = 0.0, R_time = 0.0, W_time = 0.0, H_time = 0.0; 
     W.resize(k*m);
     H.resize(k*n);
 
@@ -83,10 +84,14 @@ void FtrlProblem::initialize() {
             WT[d*m+j] = W[j*k+d];
         }
         for (FtrlLong j = 0; j < n; j++) {
-            H[j*k+d] = distribution(engine);
+            if (data->Q[j].size() != 0 )
+                H[j*k+d] = 0;
+            else
+                H[j*k+d] = distribution(engine);
             HT[d*n+j] = H[j*k+d];
         }
     }
+    I_time += omp_get_wtime() - time;
     start_time = omp_get_wtime();
 }
 
@@ -112,7 +117,7 @@ void FtrlProblem::print_epoch_info() {
 
 
 void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
-    
+    double time = omp_get_wtime();    
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &P = data->P;
@@ -135,6 +140,8 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     g += w*(a*h_sum[d]-wTh+w_val*h2_sum[d]);
 
     FtrlDouble new_w_val = g/h;
+    U_time += omp_get_wtime() - time;
+    time = omp_get_wtime();
     for (Node* p : P[i]) {
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
@@ -142,9 +149,11 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
     }
     W[i*k+d] = new_w_val;
     WT[d*m+i] = new_w_val;
+    R_time += omp_get_wtime() - time;
 }
 
 void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
+    double time = omp_get_wtime();
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<vector<Node*>> &Q = data->Q;
@@ -167,6 +176,8 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     g += w*(a*w_sum[d]-wTh+h_val*w2_sum[d]);
 
     FtrlDouble new_h_val = g/h;
+    U_time += omp_get_wtime() - time;
+    time = omp_get_wtime();
     for (Node* q : Q[j]) {
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
@@ -174,6 +185,7 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
     }
     H[j*k+d] = new_h_val;
     HT[d*n+j] = new_h_val;
+    R_time += omp_get_wtime() - time;
 }
 
 
@@ -355,14 +367,27 @@ void FtrlProblem::update_R() {
 void FtrlProblem::update_coordinates() {
     FtrlInt k = param->k;
     FtrlLong m = data->m, n = data->n;
+    double time;
     for (FtrlInt d = 0; d < k; d++) {
-        cache_w(d);
-        for (FtrlLong j = 0; j < n; j++) {
-            update_h(j, d);
-        }
-        cache_h(d);
-        for (FtrlLong i = 0; i < m; i++) {
-            update_w(i, d);
+         for (FtrlInt s = 0; s < 1; s++) {
+            time = omp_get_wtime();
+            cache_w(d);
+            C_time += omp_get_wtime() - time;
+            H_time += omp_get_wtime() - time;
+            time = omp_get_wtime();
+            for (FtrlLong j = 0; j < n; j++) {
+                update_h(j, d);
+            }
+            H_time += omp_get_wtime() - time;
+            time = omp_get_wtime();
+            cache_h(d);
+            C_time += omp_get_wtime() - time;
+            W_time += omp_get_wtime() - time;
+            time = omp_get_wtime();
+            for (FtrlLong i = 0; i < m; i++) {
+                update_w(i, d);
+            }
+            W_time += omp_get_wtime() - time;
         }
     }
 }
@@ -412,10 +437,17 @@ void FtrlProblem::solve() {
         tr_loss = cal_loss(data->l, data->R);
         cout << tr_loss+cal_reg()<< endl;
         print_epoch_info();
+        validate_ndcg(10);
         FtrlFloat ss = omp_get_wtime();
         update_coordinates();
         stime += (omp_get_wtime() - ss);
     }
-    cout << stime << endl;
+    cout << "Total update time : " << stime << endl;
+    cout << "W_time : " << W_time <<endl;
+    cout << "H_time : " << H_time <<endl;
+    cout << "I_time : " << I_time <<endl;
+    cout << "C_time : " << C_time <<endl;
+    cout << "U_time : " << U_time <<endl;
+    cout << "R_time : " << R_time <<endl;
 }
 
