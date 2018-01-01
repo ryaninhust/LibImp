@@ -91,7 +91,7 @@ public:
     void validate_ndcg(const FtrlInt &topk);
     void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
-    FtrlLong ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
+    FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     
     void cache_w(FtrlInt &d);
     void cache_h(FtrlInt &d);

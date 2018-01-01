@@ -274,7 +274,7 @@ bool FtrlProblem::is_hit(const vector<Node*> p, FtrlLong argmax) {
     return false;
 }
 
-FtrlLong FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
+FtrlDouble FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
 
     FtrlInt valid_count = 0;
     double dcg = 0.0;
