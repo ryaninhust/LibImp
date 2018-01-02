@@ -80,8 +80,8 @@ public:
     FtrlDouble cal_reg();
     FtrlDouble cal_tr_loss(FtrlLong &l, vector<Node> &R);
 
-    void update_w(FtrlLong i, FtrlInt d);
-    void update_h(FtrlLong j, FtrlInt d);
+    void update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht);
+    void update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht);
 
     void initialize();
     void solve();
@@ -94,8 +94,8 @@ public:
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     
-    void cache_w(FtrlInt &d);
-    void cache_h(FtrlInt &d);
+    void cache_w(FtrlDouble *wt);
+    void cache_h(FtrlDouble *ht);
 
     void update_coordinates();
     void print_epoch_info();
