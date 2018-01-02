@@ -44,6 +44,18 @@ void FtrlData::transpose() {
         P[node->p_idx].push_back(node);
         Q[node->q_idx].push_back(node);
     }
+    for (FtrlLong i = 0; i < m; i++) {
+        if (P[i].size())
+            for (Node* p : P[i])
+                RT.push_back(Node(p->p_idx, p->q_idx, p->val));
+    }
+    PT.resize(m);
+    QT.resize(n);
+    for (FtrlLong i = 0; i < l; i++) {
+        Node* node = &RT[i];
+        PT[node->p_idx].push_back(node);
+        QT[node->q_idx].push_back(node);
+    }
 }
 
 void FtrlData::print_data_info() {
@@ -84,7 +96,7 @@ void FtrlProblem::initialize() {
         }
         for (FtrlLong j = 0; j < n; j++) {
             if (data->Q[j].size() != 0 )
-               // H[j*k+d] = 0;
+                //H[j*k+d] = 0;
                 HT[d*n+j] = 0;
             else
                 HT[d*n+j] = distribution(engine);
@@ -121,7 +133,8 @@ void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
     //double time = omp_get_wtime();    
     //FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<Node*> &P = data->P[i];
+    //TODO change P to PT
+    const vector<Node*> &P = data->PT[i];
     //FtrlLong m = data->m, n = data->n;
     FtrlDouble w_val = wt[i];
     FtrlDouble h = lambda*P.size(), g = 0;
@@ -230,8 +243,8 @@ void FtrlProblem::validate(const FtrlInt &topk) {
     FtrlInt k = param->k;
     FtrlLong n = data->n, m = data->m;
     vector<FtrlFloat> Z(n, 0);
-    const vector<vector<Node*>> &P = data->P;
-    const vector<vector<Node*>> &TP = test_data->P;
+    const vector<vector<Node*>> &P = data->PT;
+    const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = W.data();
     FtrlLong hit_count = 0;
     FtrlLong valid_samples = 0;
@@ -252,8 +265,8 @@ void FtrlProblem::validate(const FtrlInt &topk) {
 void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
     //FtrlInt k = param->k;
     FtrlLong n = data->n, m = data->m;
-    const vector<vector<Node*>> &P = data->P;
-    const vector<vector<Node*>> &TP = test_data->P;
+    const vector<vector<Node*>> &P = data->PT;
+    const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = WT.data();
     double ndcg = 0;
     FtrlLong valid_samples = 0;
@@ -378,12 +391,18 @@ void FtrlProblem::update_R() {
 
 void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
     vector<Node> &R = data->R;
-    if (add)
-        for (Node r : R) 
+    vector<Node> &RT = data->RT;
+    if (add) {
+        for (Node r : R)
             r.val += wt[r.p_idx]*ht[r.q_idx];
-    else
-        for (Node r : R) 
+        for (Node r : RT)
+            r.val += wt[r.p_idx]*ht[r.q_idx];
+    } else {
+        for (Node r : R)
             r.val -= wt[r.p_idx]*ht[r.q_idx];
+        for (Node r : RT)
+            r.val -= wt[r.p_idx]*ht[r.q_idx];
+    }
 }
 
 
