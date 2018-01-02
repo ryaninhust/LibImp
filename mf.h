@@ -86,6 +86,7 @@ public:
     void initialize();
     void solve();
     void update_R();
+    void update_R(FtrlDouble *wt, FtrlDouble *ht, bool add);
 
     void validate(const FtrlInt &topk);
     void validate_ndcg(const FtrlInt &topk);

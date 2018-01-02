@@ -111,7 +111,7 @@ void FtrlProblem::print_epoch_info() {
 
 
 void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
-    double time = omp_get_wtime();    
+    //double time = omp_get_wtime();    
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<Node*> &P = data->P[i];
@@ -122,27 +122,28 @@ void FtrlProblem::update_w(FtrlLong i, FtrlInt d) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
-        g += ((1-w)*(r+h_val*w_val)+w*(1-a))*h_val;
+        //TODO change r -> r hat
+        g += ((1-w)*r+w*(1-a))*h_val;
         h += (1-w)*h_val*h_val;
     }
     h += w*h2_sum;
     g += w*(a*h_sum-hv[i]+w_val*h2_sum);
 
     FtrlDouble new_w_val = g/h;
-    U_time += omp_get_wtime() - time;
-    time = omp_get_wtime();
-    for (Node* p : P) {
+    //U_time += omp_get_wtime() - time;
+    //time = omp_get_wtime();
+    /*for (Node* p : P) {
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = HT[d*n+j];
         p->val += (w_val-new_w_val)*h_val;
-    }
+    }*/
     W[i*k+d] = new_w_val;
     WT[d*m+i] = new_w_val;
-    R_time += omp_get_wtime() - time;
+    //R_time += omp_get_wtime() - time;
 }
 
 void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
-    double time = omp_get_wtime();
+    //double time = omp_get_wtime();
     FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<Node*> &Q = data->Q[j];
@@ -153,23 +154,24 @@ void FtrlProblem::update_h(FtrlLong j, FtrlInt d) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
-        g += ((1-w)*(r+h_val*w_val)+w*(1-a))*w_val;
+        //TODO change r -> r hat 
+        g += ((1-w)*r+w*(1-a))*w_val;
         h += (1-w)*w_val*w_val;
     }
     h += w*w2_sum;
     g += w*(a*w_sum-wu[j]+h_val*w2_sum);
 
     FtrlDouble new_h_val = g/h;
-    U_time += omp_get_wtime() - time;
-    time = omp_get_wtime();
-    for (Node* q : Q) {
+    //U_time += omp_get_wtime() - time;
+    //time = omp_get_wtime();
+    /*for (Node* q : Q) {
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = WT[d*m+i];
         q->val += (h_val-new_h_val)*w_val;
-    }
+    }*/
     H[j*k+d] = new_h_val;
     HT[d*n+j] = new_h_val;
-    R_time += omp_get_wtime() - time;
+    //R_time += omp_get_wtime() - time;
 }
 
 
@@ -348,12 +350,27 @@ void FtrlProblem::update_R() {
     }
 }
 
+void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
+    vector<Node> &R = data->R;
+    if (add)
+        for (Node r : R) 
+            r.val += wt[r.p_idx]*ht[r.q_idx];
+    else
+        for (Node r : R) 
+            r.val -= wt[r.p_idx]*ht[r.q_idx];
+}
+
+
 void FtrlProblem::update_coordinates() {
     FtrlInt k = param->k;
     FtrlLong m = data->m, n = data->n;
     double time;
     for (FtrlInt d = 0; d < k; d++) {
-         for (FtrlInt s = 0; s < 1; s++) {
+         //TODO create hat{R} 
+         FtrlDouble *u = &WT[d*m];
+         FtrlDouble *v = &HT[d*n];
+         update_R(u, v, true);
+         for (FtrlInt s = 0; s < 5; s++) {
             time = omp_get_wtime();
             cache_w(d);
             C_time += omp_get_wtime() - time;
@@ -375,6 +392,9 @@ void FtrlProblem::update_coordinates() {
             }
             W_time += omp_get_wtime() - time;
         }
+        time = omp_get_wtime();
+        update_R(u, v, false); 
+        R_time += omp_get_wtime() - time;
     }
 }
 
@@ -437,6 +457,7 @@ void FtrlProblem::solve() {
     for (t = 0; t < param->nr_pass; t++) {
         tr_loss = cal_loss(data->l, data->R);
         cout << tr_loss+cal_reg()<< endl;
+        validate_ndcg(10);
         print_epoch_info();
         FtrlFloat ss = omp_get_wtime();
         update_coordinates();
