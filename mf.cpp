@@ -481,9 +481,11 @@ void FtrlProblem::cache_h(FtrlDouble *ht) {
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
+#pragma omp parallel for schedule(static)
     for (FtrlLong j = 0; j < m; j++) {
         hv[j] = 0;
     }
+#pragma omp parallel for schedule(static) reduction(+:sq,sum)
     for (FtrlInt j = 0; j < n; j++) {
         sq +=  ht[j]*ht[j];
         sum += ht[j];
@@ -493,6 +495,7 @@ void FtrlProblem::cache_h(FtrlDouble *ht) {
         for (FtrlLong i = 0; i < n; i++) {
             uTWt += ht[i] * HT[di*n+i];
         }
+#pragma omp parallel for schedule(static)
         for (FtrlLong j = 0; j < m; j++) {
             hv[j] += uTWt * WT[di*m+j];
         }
