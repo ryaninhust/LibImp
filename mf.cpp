@@ -56,6 +56,22 @@ void FtrlData::transpose() {
         PT[node->p_idx].push_back(node);
         QT[node->q_idx].push_back(node);
     }
+    R.clear();
+    R.resize(l);
+    for (FtrlLong i = 0; i < m; i++) {
+        if (PT[i].size())
+            for (Node* q : QT[i])
+                R.push_back(Node(q->p_idx, q->q_idx, q->val));
+    }
+    P.clear();
+    Q.clear();
+    P.resize(m);
+    Q.resize(n);
+    for (FtrlLong i = 0; i < l; i++) {
+        Node* node = &R[i];
+        P[node->p_idx].push_back(node);
+        Q[node->q_idx].push_back(node);
+    }
 }
 
 void FtrlData::print_data_info() {
@@ -85,20 +101,21 @@ void FtrlProblem::initialize() {
 
     default_random_engine engine(0);
     uniform_real_distribution<FtrlFloat> distribution(0, 1.0/sqrt(k));
-
+#pragma omp parallel for schedule(static)
     for (FtrlInt d = 0; d < k; d++)
     {
         for (FtrlLong j = 0; j < m; j++) {
             //W[j*k+d] = distribution(engine);
             WT[d*m+j] = distribution(engine); 
-            //W[j*k+d] = 1/sqrt(k);
+            //WT[d*m+j] = 1/sqrt(k);
             //WT[d*m+j] = W[j*k+d];
         }
         for (FtrlLong j = 0; j < n; j++) {
-            if (data->Q[j].size() != 0 )
+            if (data->Q[j].size())
                 //H[j*k+d] = 0;
                 HT[d*n+j] = 0;
             else
+                //HT[d*n+j] = 0;
                 HT[d*n+j] = distribution(engine);
                 //H[j*k+d] = distribution(engine);
             //HT[d*n+j] = H[j*k+d];
@@ -130,19 +147,16 @@ void FtrlProblem::print_epoch_info() {
 
 
 void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
-    //double time = omp_get_wtime();    
-    //FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
-    //TODO change P to PT
     const vector<Node*> &P = data->PT[i];
-    //FtrlLong m = data->m, n = data->n;
     FtrlDouble w_val = wt[i];
     FtrlDouble h = lambda*P.size(), g = 0;
-    for (Node* p : P) {
+#pragma omp parallel for schedule(static) reduction(+:g,h)
+    for (size_t index = 0; index < P.size(); index++) {
+        Node* p = P[index];
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = ht[j];
-        //TODO change r -> r hat
         g += ((1-w)*r+w*(1-a))*h_val;
         h += (1-w)*h_val*h_val;
     }
@@ -150,31 +164,21 @@ void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
     g += w*(a*h_sum-hv[i]+w_val*h2_sum);
 
     FtrlDouble new_w_val = g/h;
-    //U_time += omp_get_wtime() - time;
-    //time = omp_get_wtime();
-    /*for (Node* p : P) {
-        FtrlLong j = p->q_idx;
-        FtrlDouble h_val = HT[d*n+j];
-        p->val += (w_val-new_w_val)*h_val;
-    }*/
     //W[i*k+d] = new_w_val;
     wt[i] = new_w_val;
-    //R_time += omp_get_wtime() - time;
 }
 
 void FtrlProblem::update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht) {
-    //double time = omp_get_wtime();
-    //FtrlInt k = param->k;
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
     const vector<Node*> &Q = data->Q[j];
-    //FtrlLong m = data->m, n = data->n;
     FtrlDouble h_val = ht[j];
     FtrlDouble h = lambda*Q.size(), g = 0;
-    for (Node* q : Q) {
+#pragma omp parallel for schedule(static) reduction(+:g,h)
+    for (size_t index = 0; index < Q.size(); index++) {
+        Node* q = Q[index];
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = wt[i];
-        //TODO change r -> r hat 
         g += ((1-w)*r+w*(1-a))*w_val;
         h += (1-w)*w_val*w_val;
     }
@@ -182,23 +186,12 @@ void FtrlProblem::update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht) {
     g += w*(a*w_sum-wu[j]+h_val*w2_sum);
 
     FtrlDouble new_h_val = g/h;
-    //if (j >= 0 && j <10)
-    //     printf("U : %f, D : %f, H : %f\n", g, h, g/h);
-    //U_time += omp_get_wtime() - time;
-    //time = omp_get_wtime();
-    /*for (Node* q : Q) {
-        FtrlLong i = q->p_idx;
-        FtrlDouble w_val = WT[d*m+i];
-        q->val += (h_val-new_h_val)*w_val;
-    }*/
    // H[j*k+d] = new_h_val;
     ht[j] = new_h_val;
-    //R_time += omp_get_wtime() - time;
 }
 
 
 FtrlDouble FtrlProblem::cal_loss(FtrlLong &l, vector<Node> &R) {
-    //TODO change W H to WT HT
     FtrlInt k = param->k;
     FtrlDouble loss = 0, a = param->a;
     FtrlLong m = data->m, n = data->n;
@@ -263,13 +256,13 @@ void FtrlProblem::validate(const FtrlInt &topk) {
 }
 
 void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
-    //FtrlInt k = param->k;
     FtrlLong n = data->n, m = data->m;
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = WT.data();
     double ndcg = 0;
     FtrlLong valid_samples = 0;
+#pragma omp parallel for schedule(static)
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
@@ -392,16 +385,29 @@ void FtrlProblem::update_R() {
 void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
     vector<Node> &R = data->R;
     vector<Node> &RT = data->RT;
+    FtrlLong l = data->l;
     if (add) {
-        for (Node r : R)
+#pragma omp parallel for schedule(static)
+        for (FtrlLong i = 0; i < l; i++ ) {
+            Node r = R[i]; 
             r.val += wt[r.p_idx]*ht[r.q_idx];
-        for (Node r : RT)
+        }
+#pragma omp parallel for schedule(static)
+        for (FtrlLong i = 0; i < l; i++ ) {
+            Node r = RT[i]; 
             r.val += wt[r.p_idx]*ht[r.q_idx];
+        }
     } else {
-        for (Node r : R)
+#pragma omp parallel for schedule(static)
+        for (FtrlLong i = 0; i < l; i++ ) {
+            Node r = R[i]; 
             r.val -= wt[r.p_idx]*ht[r.q_idx];
-        for (Node r : RT)
+        }
+#pragma omp parallel for schedule(static)
+        for (FtrlLong i = 0; i < l; i++ ) {
+            Node r = RT[i]; 
             r.val -= wt[r.p_idx]*ht[r.q_idx];
+        }
     }
 }
 
@@ -415,7 +421,6 @@ void FtrlProblem::update_coordinates() {
          FtrlDouble *u = &WT[d*m];
          FtrlDouble *v = &HT[d*n];
          update_R(u, v, true);
-         //cout<<"rank: "<<d<<endl;
          for (FtrlInt s = 0; s < 5; s++) {
             time = omp_get_wtime();
             cache_w(u);
@@ -448,9 +453,11 @@ void FtrlProblem::cache_w(FtrlDouble *wt) {
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
+#pragma omp parallel for schedule(static)
     for (FtrlLong i = 0; i < n; i++) {
         wu[i] = 0;
     }
+#pragma omp parallel for schedule(static) reduction(+:sq,sum)
     for (FtrlInt j = 0; j < m; j++) {
         sq +=  wt[j]*wt[j];
         sum += wt[j];
@@ -460,6 +467,7 @@ void FtrlProblem::cache_w(FtrlDouble *wt) {
         for (FtrlLong j = 0; j < m; j++) {
             uTWt += wt[j] * WT[di*m+j];
         }
+#pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < n; i++) {
             wu[i] += uTWt * HT[di*n+i];
         }
@@ -501,7 +509,7 @@ void FtrlProblem::solve() {
     for (t = 0; t < param->nr_pass; t++) {
         FtrlFloat ss1 = omp_get_wtime();
         tr_loss = cal_loss(data->l, data->R);
-        cout << tr_loss+cal_reg()<< endl;
+        cout << tr_loss + cal_reg()<< endl;
         validate_ndcg(10);
         test_time += (omp_get_wtime() - ss1);
         print_epoch_info();
