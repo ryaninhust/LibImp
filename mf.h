@@ -97,8 +97,8 @@ public:
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     
-    void cache_w(FtrlDouble *wt);
-    void cache_h(FtrlDouble *ht);
+    void cache_w(FtrlDouble *wt, FtrlDouble *wu_th);
+    void cache_h(FtrlDouble *ht, FtrlDouble *hv_th);
 
     void update_coordinates();
     void print_epoch_info();
