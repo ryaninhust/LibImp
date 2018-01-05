@@ -454,6 +454,8 @@ void FtrlProblem::cache_w(FtrlDouble *wt) {
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
+    FtrlInt nr_th = param->nr_threads;
+    vector<FtrlDouble> wu_th(n*nr_th,0.0);
 #pragma omp parallel for schedule(static)
     for (FtrlLong i = 0; i < n; i++) {
         wu[i] = 0;
@@ -463,24 +465,32 @@ void FtrlProblem::cache_w(FtrlDouble *wt) {
         sq +=  wt[j]*wt[j];
         sum += wt[j];
     }
+#pragma omp parallel for schedule(static)
     for (FtrlInt di = 0; di < k; di++) {
+        FtrlInt num_th = omp_get_thread_num();
         FtrlDouble uTWt = 0;
         for (FtrlLong j = 0; j < m; j++) {
             uTWt += wt[j] * WT[di*m+j];
         }
-#pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < n; i++) {
-            wu[i] += uTWt * HT[di*n+i];
+            wu_th[n*num_th+i] += uTWt * HT[di*n+i];
         }
     }
+#pragma omp parallel for schedule(static)
+    for (FtrlLong i = 0; i < n; i++)
+        for(FtrlInt num_th = 0; num_th < nr_th; num_th++)
+            wu[i] += wu_th[num_th*n+i];
     w_sum = sum;
     w2_sum = sq;
+    wu_th.clear();
 }
 
 void FtrlProblem::cache_h(FtrlDouble *ht) {
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     FtrlFloat sq = 0, sum = 0;
+    FtrlInt nr_th =  param->nr_threads;
+    vector<FtrlDouble> hv_th(m*nr_th,0.0);
 #pragma omp parallel for schedule(static)
     for (FtrlLong j = 0; j < m; j++) {
         hv[j] = 0;
@@ -490,19 +500,26 @@ void FtrlProblem::cache_h(FtrlDouble *ht) {
         sq +=  ht[j]*ht[j];
         sum += ht[j];
     }
+#pragma omp parallel for schedule(static)
     for (FtrlInt di = 0; di < k; di++) {
         FtrlDouble uTWt = 0;
+        FtrlInt num_th = omp_get_thread_num();
         for (FtrlLong i = 0; i < n; i++) {
             uTWt += ht[i] * HT[di*n+i];
         }
-#pragma omp parallel for schedule(static)
         for (FtrlLong j = 0; j < m; j++) {
-            hv[j] += uTWt * WT[di*m+j];
+            hv_th[m*num_th+j] += uTWt * WT[di*m+j];
         }
     }
-
+#pragma omp parallel for schedule(static)
+    for (FtrlLong j = 0; j < m; j++) {
+        for(FtrlInt num_th = 0; num_th < nr_th; num_th++) {
+            hv[j] += hv_th[m*num_th+j];
+        }
+    }
     h_sum = sum;
     h2_sum = sq;
+    hv_th.clear();
 }
 
 void FtrlProblem::solve() {
@@ -510,12 +527,13 @@ void FtrlProblem::solve() {
     update_R();
     FtrlFloat test_time = 0;
     FtrlFloat stime = 0;
+    cout<<"Using "<<param->nr_threads<<" threads"<<endl;
     for (t = 0; t < param->nr_pass; t++) {
-        //FtrlFloat ss1 = omp_get_wtime();
-        //tr_loss = cal_loss(data->l, data->R);
-        //cout << tr_loss + cal_reg()<< endl;
-        //validate_ndcg(10);
-        //test_time += (omp_get_wtime() - ss1);
+        FtrlFloat ss1 = omp_get_wtime();
+        tr_loss = cal_loss(data->l, data->R);
+        cout << tr_loss + cal_reg()<< endl;
+        validate_ndcg(10);
+        test_time += (omp_get_wtime() - ss1);
         print_epoch_info();
         FtrlFloat ss = omp_get_wtime();
         update_coordinates();
