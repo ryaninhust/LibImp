@@ -48,6 +48,7 @@ string train_help()
     "-w <path>: set weights to the negatives (default 1)\n"
     "-a <path>: set labels to the negatives (default 0)\n"
     "-c <threads>: set number of cores\n"
+    "-k <rank>: set number of rank\n"
     );
 }
 
