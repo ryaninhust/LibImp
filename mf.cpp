@@ -22,8 +22,8 @@ void FtrlData::read() {
         iss >> p_idx;
         iss >> q_idx;
 
-        p_idx --;
-        q_idx --;
+        //p_idx --;
+        //q_idx --;
 
         FtrlFloat val;
         iss >> val;
@@ -229,12 +229,11 @@ FtrlDouble FtrlProblem::cal_tr_loss(FtrlLong &l, vector<Node> &R) {
 }
 
 void FtrlProblem::validate(const FtrlInt &topk) {
-    FtrlInt k = param->k;
     FtrlLong n = data->n, m = data->m;
     vector<FtrlFloat> Z(n, 0);
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
-    const FtrlFloat* Wp = W.data();
+    const FtrlFloat* Wp = WT.data();
     FtrlLong hit_count = 0;
     FtrlLong valid_samples = 0;
     for (FtrlLong i = 0; i < m; i++) {
@@ -243,7 +242,7 @@ void FtrlProblem::validate(const FtrlInt &topk) {
         if (!tp.size()) {
             continue;
         }
-        const FtrlFloat *w = Wp+i*k;
+        const FtrlFloat *w = Wp+i;
         predict_candidates(w, Z);
         hit_count += precision_k(Z, p, tp, topk);
         valid_samples++;
