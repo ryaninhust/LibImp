@@ -539,7 +539,7 @@ void FtrlProblem::solve() {
         FtrlFloat ss1 = omp_get_wtime();
         tr_loss = cal_loss(data->l, data->R);
         cout << tr_loss + cal_reg()<< endl;
-        validate_ndcg(10);
+        validate(10);
         test_time += (omp_get_wtime() - ss1);
         print_epoch_info();
         FtrlFloat ss = omp_get_wtime();
