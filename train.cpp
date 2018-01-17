@@ -156,7 +156,6 @@ int main(int argc, char *argv[])
 {
     try
     {
-        feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
         Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
@@ -164,12 +163,10 @@ int main(int argc, char *argv[])
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
         data->read();
         data->transpose();
-        //data->print_data_info();
 
         if (!test_data->file_name.empty()) {
             test_data->read();
             test_data->transpose();
-            //test_data->print_data_info();
         }
 
         FtrlProblem prob(data, test_data, option.param);

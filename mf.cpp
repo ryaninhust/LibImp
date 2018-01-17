@@ -83,14 +83,10 @@ void FtrlData::print_data_info() {
 }
 
 void FtrlProblem::initialize() {
-    double time = omp_get_wtime();
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     t = 0;
     tr_loss = 0.0, va_loss = 0.0, obj = 0.0, reg=0.0;
-    U_time = 0.0, C_time = 0.0, I_time = 0.0, R_time = 0.0, W_time = 0.0, H_time = 0.0; 
-    //W.resize(k*m);
-    //H.resize(k*n);
 
     WT.resize(k*m);
     HT.resize(k*n);
@@ -105,23 +101,15 @@ void FtrlProblem::initialize() {
     for (FtrlInt d = 0; d < k; d++)
     {
         for (FtrlLong j = 0; j < m; j++) {
-            //W[j*k+d] = distribution(engine);
             WT[d*m+j] = distribution(engine); 
-            //WT[d*m+j] = 1/sqrt(k);
-            //WT[d*m+j] = W[j*k+d];
         }
         for (FtrlLong j = 0; j < n; j++) {
             if (data->Q[j].size())
-                //H[j*k+d] = 0;
                 HT[d*n+j] = 0;
             else
-                //HT[d*n+j] = 0;
                 HT[d*n+j] = distribution(engine);
-                //H[j*k+d] = distribution(engine);
-            //HT[d*n+j] = H[j*k+d];
         }
     }
-    I_time += omp_get_wtime() - time;
     start_time = omp_get_wtime();
 }
 
@@ -140,7 +128,7 @@ void FtrlProblem::print_epoch_info() {
     cout << t+1;
     if (!test_data->file_name.empty()) {
         cout.width(13);
-        cout << setprecision(4) << va_loss;
+        cout << setprecision(3) << va_loss*100;
     }
     cout << "\n";
 } 
@@ -230,13 +218,14 @@ FtrlDouble FtrlProblem::cal_tr_loss(FtrlLong &l, vector<Node> &R) {
 
 void FtrlProblem::validate(const FtrlInt &topk) {
     FtrlLong n = data->n, m = data->m;
-    vector<FtrlFloat> Z(n, 0);
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = WT.data();
     FtrlLong hit_count = 0;
     FtrlLong valid_samples = 0;
+#pragma omp parallel for schedule(static) reduction(+: valid_samples, hit_count)
     for (FtrlLong i = 0; i < m; i++) {
+        vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
         const vector<Node*> tp = TP[i];
         if (!tp.size()) {
@@ -257,7 +246,7 @@ void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
     const FtrlFloat* Wp = WT.data();
     double ndcg = 0;
     FtrlLong valid_samples = 0;
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) reduction(+: valid_samples, ndcg)
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
@@ -320,10 +309,6 @@ FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, 
     FtrlInt hit_count = 0;
     while(valid_count < topk) {
         FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-        if (is_hit(p, argmax)) {
-            Z[argmax] = MIN_Z;
-            continue;
-        }
         if (is_hit(tp, argmax)) {
             hit_count++;
         }
@@ -413,43 +398,25 @@ void FtrlProblem::update_coordinates() {
     FtrlInt nr_th = param->nr_threads;
     vector<FtrlDouble> hv_th(m*nr_th,0.0);
     vector<FtrlDouble> wu_th(n*nr_th,0.0);
-    double time;
     for (FtrlInt d = 0; d < k; d++) {
-         //TODO create hat{R} 
          FtrlDouble *u = &WT[d*m];
          FtrlDouble *v = &HT[d*n];
          update_R(u, v, true);
          for (FtrlInt s = 0; s < 5; s++) {
-            time = omp_get_wtime();
-            //fill(wu_th.begin(),wu_th.end(),0);
             cache_w(u, wu_th.data());
-            C_time += omp_get_wtime() - time;
-            H_time += omp_get_wtime() - time;
-            time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (FtrlLong j = 0; j < n; j++) {
                 if (data->Q[j].size())
                     update_h(j, u, v);
             }
-            H_time += omp_get_wtime() - time;
-            U_time += omp_get_wtime() - time;
-            time = omp_get_wtime();
-            //fill(hv_th.begin(),hv_th.end(),0);
             cache_h(v, hv_th.data());
-            C_time += omp_get_wtime() - time;
-            W_time += omp_get_wtime() - time;
-            time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (FtrlLong i = 0; i < m; i++) {
                 if (data->P[i].size())
                     update_w(i, u, v);
             }
-            W_time += omp_get_wtime() - time;
-            U_time += omp_get_wtime() - time;
         }
-        time = omp_get_wtime();
         update_R(u, v, false); 
-        R_time += omp_get_wtime() - time;
     }
 }
 
@@ -530,29 +497,13 @@ void FtrlProblem::cache_h(FtrlDouble *ht, FtrlDouble *hv_th) {
 }
 
 void FtrlProblem::solve() {
+    cout<<"Using "<<param->nr_threads<<" threads"<<endl;
     print_header_info();
     update_R();
-    FtrlFloat test_time = 0;
-    FtrlFloat stime = 0;
-    cout<<"Using "<<param->nr_threads<<" threads"<<endl;
     for (t = 0; t < param->nr_pass; t++) {
-        FtrlFloat ss1 = omp_get_wtime();
-        //tr_loss = cal_loss(data->l, data->R);
-        //cout << tr_loss + cal_reg()<< endl;
-        validate(10);
-        test_time += (omp_get_wtime() - ss1);
-        print_epoch_info();
-        FtrlFloat ss = omp_get_wtime();
         update_coordinates();
-        stime += (omp_get_wtime() - ss);
+        validate(10);
+        print_epoch_info();
     }
-    cout << "Total update time : " << stime << endl;
-    cout << "Total test time : " << test_time << endl;
-    cout << "W_time : " << W_time <<endl;
-    cout << "H_time : " << H_time <<endl;
-    cout << "I_time : " << I_time <<endl;
-    cout << "C_time : " << C_time <<endl;
-    cout << "U_time : " << U_time <<endl;
-    cout << "R_time : " << R_time <<endl;
 }
 
