@@ -63,8 +63,8 @@ public:
         :data(data), test_data(test_data), param(param) {};
 
 
-    vector<FtrlFloat> W;
-    vector<FtrlFloat> H;
+    vector<FtrlFloat> W, H;
+    vector<FtrlFloat> WT, HT;
 
     FtrlInt t;
     FtrlDouble obj, reg, tr_loss, va_loss;
@@ -78,16 +78,20 @@ public:
     FtrlDouble cal_loss(FtrlLong &l, vector<Node> &R);
     FtrlDouble cal_reg();
     FtrlDouble cal_tr_loss(FtrlLong &l, vector<Node> &R);
+
     void update_w(FtrlLong i, FtrlInt d);
     void update_h(FtrlLong j, FtrlInt d);
+
     void initialize();
     void solve();
     void update_R();
 
     void validate(const FtrlInt &topk);
+    void validate_ndcg(const FtrlInt &topk);
     void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
-
+    FtrlLong ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
+    
     void cache_w(FtrlInt &d);
     void cache_h(FtrlInt &d);
 
