@@ -133,6 +133,17 @@ void FtrlProblem::print_epoch_info() {
     cout << "\n";
 } 
 
+void FtrlProblem::print_epoch_info_test() {
+    cout.width(4);
+    cout << t+1;
+    cout.width(5);
+    cout << " test";
+    if (!test_data->file_name.empty()) {
+        cout.width(8);
+        cout << setprecision(3) << va_loss*100;
+    }
+    cout << "\n";
+}
 
 void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
     FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
@@ -220,6 +231,29 @@ void FtrlProblem::validate(const FtrlInt &topk) {
     FtrlLong n = data->n, m = data->m;
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
+    const FtrlFloat* Wp = WT.data();
+    FtrlLong hit_count = 0;
+    FtrlLong valid_samples = 0;
+#pragma omp parallel for schedule(static) reduction(+: valid_samples, hit_count)
+    for (FtrlLong i = 0; i < m; i++) {
+        vector<FtrlFloat> Z(n, 0);
+        const vector<Node*> p = P[i];
+        const vector<Node*> tp = TP[i];
+        if (!tp.size()) {
+            continue;
+        }
+        const FtrlFloat *w = Wp+i;
+        predict_candidates(w, Z);
+        hit_count += precision_k(Z, p, tp, topk);
+        valid_samples++;
+    }
+    va_loss = hit_count/double(valid_samples*topk);
+}
+
+void FtrlProblem::validate_test(const FtrlInt &topk) {
+    FtrlLong n = data->n, m = data->m;
+    const vector<vector<Node*>> &P = data->PT;
+    const vector<vector<Node*>> &TP = test_data_2->PT;
     const FtrlFloat* Wp = WT.data();
     FtrlLong hit_count = 0;
     FtrlLong valid_samples = 0;
@@ -504,6 +538,10 @@ void FtrlProblem::solve() {
         update_coordinates();
         validate(10);
         print_epoch_info();
+        if (t%3 == 2 && test_with_two_data) {
+            validate_test(10);
+            print_epoch_info_test();
+        }
     }
 }
 

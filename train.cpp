@@ -11,7 +11,8 @@ struct Option
 {
     shared_ptr<Parameter> param;
     FtrlInt verbose;
-    string data_path, test_path;
+    string data_path, test_path, test_path_2;
+    bool test_with_two_data;
 };
 
 string basename(string path)
@@ -62,6 +63,7 @@ Option parse_option(int argc, char **argv)
         throw invalid_argument(train_help());
 
     Option option;
+    option.test_with_two_data = false;
     option.verbose = 1;
     option.param = make_shared<Parameter>();
     int i = 0;
@@ -139,6 +141,15 @@ Option parse_option(int argc, char **argv)
 
             option.test_path = string(args[i]);
         }
+        else if(args[i].compare("-v") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -v");
+            i++;
+
+            option.test_path_2 = string(args[i]);
+            option.test_with_two_data = true;
+        }
         else
         {
             break;
@@ -161,6 +172,10 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
+        shared_ptr<FtrlData> test_data_2;
+        if (option.test_with_two_data)
+            test_data_2 = make_shared<FtrlData>(option.test_path_2);
+
         data->read();
         data->transpose();
 
@@ -169,9 +184,22 @@ int main(int argc, char *argv[])
             test_data->transpose();
         }
 
-        FtrlProblem prob(data, test_data, option.param);
-        prob.initialize();
-        prob.solve();
+        if (option.test_with_two_data && !test_data_2->file_name.empty()) {
+            test_data_2->read();
+            test_data_2->transpose();
+        }
+
+        if (!option.test_with_two_data) {
+            FtrlProblem prob(data, test_data, option.param);
+            prob.initialize();
+            prob.solve();
+        }
+        else
+        {
+            FtrlProblem prob(data, test_data, test_data_2, option.param);
+            prob.initialize();
+            prob.solve();
+        }
     }
     catch (invalid_argument &e)
     {

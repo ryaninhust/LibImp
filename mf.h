@@ -61,10 +61,13 @@ class FtrlProblem {
 public:
     shared_ptr<FtrlData> data;
     shared_ptr<FtrlData> test_data;
+    shared_ptr<FtrlData> test_data_2;
     shared_ptr<Parameter> param;
+    bool test_with_two_data;
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data, shared_ptr<Parameter> &param)
-        :data(data), test_data(test_data), param(param) {};
-
+        :data(data), test_data(test_data), param(param) {test_with_two_data=false;};
+    FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data,shared_ptr<FtrlData> &test_data_2, shared_ptr<Parameter> &param)
+        :data(data), test_data(test_data), test_data_2(test_data_2), param(param) {test_with_two_data=true;};
 
     vector<FtrlFloat> W, H;
     vector<FtrlFloat> WT, HT;
@@ -92,6 +95,7 @@ public:
     void update_R(FtrlDouble *wt, FtrlDouble *ht, bool add);
 
     void validate(const FtrlInt &topk);
+    void validate_test(const FtrlInt &topk);
     void validate_ndcg(const FtrlInt &topk);
     void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
@@ -102,6 +106,7 @@ public:
 
     void update_coordinates();
     void print_epoch_info();
+    void print_epoch_info_test();
     void print_header_info();
 
     bool is_hit(const vector<Node*> p, FtrlLong argmax);
