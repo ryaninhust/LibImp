@@ -27,7 +27,8 @@ void FtrlProblem::save() {
         {
             FtrlFloat *ptr1 = ptr + i*size;
             f << prefix << i << " ";
-            if(isnan(ptr1[0]))
+            //if(isnan(ptr1[0]))
+            if(false)
             {
                 f << "F ";
                 for(FtrlLong d = 0; d < size; d++)
@@ -70,7 +71,7 @@ void FtrlProblem::load() {
             if(dummy.compare("F") == 0) // nan vector starts with "F"
                 for(FtrlLong  d = 0; d < size; d++)
                 {
-                    f >> dummy;
+                    f >> ptr1[d];
                 }
             else
                 for( FtrlLong d = 0; d < size; d++)
