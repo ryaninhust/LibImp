@@ -36,6 +36,7 @@ class Parameter {
 public:
     FtrlFloat lambda, w, a;
     FtrlInt nr_pass, k, nr_threads;
+    string model_path, predict_path;
     Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1) {};
 };
 
@@ -64,6 +65,8 @@ public:
     shared_ptr<FtrlData> test_data_2;
     shared_ptr<Parameter> param;
     bool test_with_two_data;
+    FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<Parameter> &param)
+        :data(data), param(param) {test_with_two_data=false;};
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data, shared_ptr<Parameter> &param)
         :data(data), test_data(test_data), param(param) {test_with_two_data=false;};
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data,shared_ptr<FtrlData> &test_data_2, shared_ptr<Parameter> &param)
@@ -88,6 +91,8 @@ public:
 
     void update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht);
     void update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht);
+    void save();
+    void load();
 
     void initialize();
     void solve();
@@ -97,6 +102,7 @@ public:
     void validate(const FtrlInt &topk);
     void validate_test(const FtrlInt &topk);
     void validate_ndcg(const FtrlInt &topk);
+    void predict_item(const FtrlInt &topk);
     void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
     FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
     FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);

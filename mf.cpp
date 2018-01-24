@@ -9,6 +9,88 @@ double inner(const double *a, const double *b, const int k)
     return r;
 }
 
+void FtrlProblem::save() {
+
+    FtrlLong m = data->m, n = data->n;
+    FtrlInt k = param->k;
+    ofstream f(param->model_path);
+    if(!f.is_open())
+        return ;
+
+    f << "m " << m << endl;
+    f << "n " << n << endl;
+    f << "k " << k << endl;
+
+    auto write = [&] (FtrlFloat *ptr, FtrlLong size, char prefix)
+    {
+        for(FtrlLong i = 0; i < param->k ; i++)
+        {
+            FtrlFloat *ptr1 = ptr + i*size;
+            f << prefix << i << " ";
+            if(isnan(ptr1[0]))
+            {
+                f << "F ";
+                for(FtrlLong d = 0; d < size; d++)
+                    f << 0 << " ";
+            }
+            else
+            {
+                f << "T ";
+                for(FtrlLong d = 0; d < size; d++)
+                    f << ptr1[d] << " ";
+            }
+            f << endl;
+        }
+
+    };
+
+    write(WT.data(), m, 'w');
+    write(HT.data(), n, 'h');
+
+    f.close();
+
+}
+
+void FtrlProblem::load() {
+    ifstream f(param->model_path);
+    if(!f.is_open())
+        return ;
+    string dummy;
+
+    cout<<"A"<<endl;
+    f >> dummy >> data->m >> dummy >> data->n >>
+         dummy >> param->k ;
+    cout<<"A"<<endl;
+    auto read = [&] (FtrlFloat  *ptr, FtrlLong size)
+    {
+        for(FtrlInt i = 0; i < param->k; i++)
+        {
+            FtrlFloat *ptr1 = ptr + i*size;
+            f >> dummy >> dummy;
+            if(dummy.compare("F") == 0) // nan vector starts with "F"
+                for(FtrlLong  d = 0; d < size; d++)
+                {
+                    f >> dummy;
+                }
+            else
+                for( FtrlLong d = 0; d < size; d++)
+                    f >> ptr1[d];
+        }
+    };
+
+    WT.resize(param->k*data->m);
+    HT.resize(param->k*data->n);
+
+    cout<<"A"<<endl;
+    read(WT.data(), data->m);
+    cout<<"A"<<endl;
+    read(HT.data(), data->n);
+    cout<<"A"<<endl;
+
+    f.close();
+
+}
+
 void FtrlData::read() {
     string line;
     ifstream fs(file_name);
@@ -296,6 +378,28 @@ void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
     va_loss = ndcg/double(valid_samples);
 }
 
+void FtrlProblem::predict_item(const FtrlInt &topk) {
+    if ( param->predict_path=="")
+        param->predict_path = "predict_item";
+    FtrlLong n = data->n, m = data->m;
+    const FtrlFloat* Wp = WT.data();
+    ofstream f(param->predict_path);
+    if(!f.is_open())
+      return ;
+
+    for (FtrlLong i = 0; i < m; i++) {
+        vector<FtrlFloat> Z(n, 0);
+        const FtrlFloat *w = Wp+i;
+        predict_candidates(w, Z);
+        for (FtrlLong item = 0; item < topk; item++) {
+            FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            Z[argmax] = MIN_Z;
+            f << argmax << " ";
+        }
+        f<<endl;
+    }
+}
+
 void FtrlProblem::predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z) {
     FtrlInt k = param->k;
     FtrlLong n = data->n, m = data->m;
@@ -543,5 +647,9 @@ void FtrlProblem::solve() {
             print_epoch_info_test();
         }
     }
+    if (param->predict_path != "")
+        predict_item(10);
+    if (param->model_path != "")
+        save();
 }
 

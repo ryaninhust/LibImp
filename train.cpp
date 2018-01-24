@@ -46,6 +46,8 @@ string train_help()
     "-l <lambda_2>: set regularization coefficient on r regularizer (default 0.1)\n"
     "-t <iter>: set number of iterations (default 20)\n"
     "-p <path>: set path to test set\n"
+    "-r <path>: set path to save result\n"
+    "-m <path>: set path to save model\n"
     "-w <path>: set weights to the negatives (default 1)\n"
     "-a <path>: set labels to the negatives (default 0)\n"
     "-c <threads>: set number of cores\n"
@@ -132,6 +134,22 @@ Option parse_option(int argc, char **argv)
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-c should be followed by a number");
             option.param->nr_threads = atof(argv[i]);
+        }
+        else if(args[i].compare("-m") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -m");
+            i++;
+
+            option.param->model_path = string(args[i]);
+        }
+        else if(args[i].compare("-r") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -r");
+            i++;
+
+            option.param->predict_path = string(args[i]);
         }
         else if(args[i].compare("-p") == 0)
         {

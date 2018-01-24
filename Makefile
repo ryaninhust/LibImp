@@ -9,7 +9,10 @@ CXXFLAGS = -Wall -O3 -std=c++0x -march=native
 DFLAG += -DUSEOMP
 CXXFLAGS += -fopenmp
 
-all: train
+all: train predict
+
+predict: predict.cpp mf.o
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 train: train.cpp mf.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
