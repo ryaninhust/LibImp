@@ -58,10 +58,8 @@ void FtrlProblem::load() {
         return ;
     string dummy;
 
-    cout<<"A"<<endl;
     f >> dummy >> data->m >> dummy >> data->n >>
          dummy >> param->k ;
-    cout<<"A"<<endl;
     auto read = [&] (FtrlFloat  *ptr, FtrlLong size)
     {
         for(FtrlInt i = 0; i < param->k; i++)
@@ -82,11 +80,8 @@ void FtrlProblem::load() {
     WT.resize(param->k*data->m);
     HT.resize(param->k*data->n);
 
-    cout<<"A"<<endl;
     read(WT.data(), data->m);
-    cout<<"A"<<endl;
     read(HT.data(), data->n);
-    cout<<"A"<<endl;
 
     f.close();
 
@@ -381,12 +376,13 @@ void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
 
 void FtrlProblem::predict_item(const FtrlInt &topk) {
     if ( param->predict_path=="")
-        param->predict_path = "predict_item";
+        param->predict_path = "result";
     FtrlLong n = data->n, m = data->m;
     const FtrlFloat* Wp = WT.data();
     ofstream f(param->predict_path);
     if(!f.is_open())
-      return ;
+        cout<<"Writing result fail"<<endl;
+        return ;
 
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
