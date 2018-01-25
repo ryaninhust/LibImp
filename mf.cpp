@@ -1,4 +1,5 @@
 #include "mf.h"
+#include <cstring>
 #define MIN_Z -10000;
 
 double inner(const double *a, const double *b, const int k)
@@ -11,6 +12,14 @@ double inner(const double *a, const double *b, const int k)
 
 void FtrlProblem::save() {
 
+    if (param->model_path == "") {
+        const char *ptr = strrchr(&*data->file_name.begin(), '/');
+        if(!ptr)
+            ptr = data->file_name.c_str();
+        else
+            ++ptr;
+        param->model_path = string(ptr) + ".model";
+    }
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     ofstream f(param->model_path);
@@ -651,7 +660,6 @@ void FtrlProblem::solve() {
     }
     if (param->predict_path != "")
         predict_item(10);
-    if (param->model_path != "")
-        save();
+    save();
 }
 
