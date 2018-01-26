@@ -18,8 +18,8 @@ using namespace std;
 
 typedef double FtrlFloat;
 typedef double FtrlDouble;
-typedef int FtrlInt;
-typedef int FtrlLong;
+typedef long int FtrlInt;
+typedef long int FtrlLong;
 
 
 class Node {
