@@ -26,7 +26,7 @@ class Node {
 public:
     FtrlLong p_idx;
     FtrlLong q_idx;
-    FtrlDouble  val;
+    FtrlDouble val;
     Node(){};
     Node(FtrlLong p_idx, FtrlLong q_idx, FtrlDouble val): p_idx(p_idx), q_idx(q_idx), val(val){};
 };
@@ -55,6 +55,7 @@ public:
     FtrlData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
     void transpose();
     void read();
+    void subsample(FtrlInt repeat);
     void print_data_info();
 };
 

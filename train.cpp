@@ -112,7 +112,7 @@ Option parse_option(int argc, char **argv)
             i++;
 
             if(!is_numerical(argv[i]))
-                throw invalid_argument("-t should be followed by a number");
+                throw invalid_argument("-w should be followed by a number");
             option.param->w = atof(argv[i]);
         }
         else if(args[i].compare("-a") == 0)
@@ -193,10 +193,10 @@ int main(int argc, char *argv[])
         shared_ptr<FtrlData> test_data_2;
         if (option.test_with_two_data)
             test_data_2 = make_shared<FtrlData>(option.test_path_2);
-
+        srand (time(NULL));
         data->read();
+        data->subsample(1);
         data->transpose();
-
         if (!test_data->file_name.empty()) {
             test_data->read();
             test_data->transpose();

@@ -122,6 +122,19 @@ void FtrlData::read() {
     }
 }
 
+
+void FtrlData::subsample(FtrlInt repeat) {
+    FtrlInt size = R.size();
+    for(FtrlInt re = 0; re<repeat; re++) {
+        for(FtrlInt i = 0; i<size; i++) {
+            Node *node = &R[i];
+            R.push_back(Node(node->p_idx, rand()%n, 0));
+            l++;
+        }
+    }
+}
+
+
 void FtrlData::transpose() {
     P.resize(m);
     Q.resize(n);
@@ -233,19 +246,16 @@ void FtrlProblem::print_epoch_info_test() {
 }
 
 void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
-    FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
+    FtrlFloat lambda = param->lambda;
     const vector<Node*> &P = data->PT[i];
-    FtrlDouble w_val = wt[i];
     FtrlDouble h = lambda*P.size(), g = 0;
     for (Node* p : P) {
         FtrlDouble r = p->val;
         FtrlLong j = p->q_idx;
         FtrlDouble h_val = ht[j];
-        g += ((1-w)*r+w*(1-a))*h_val;
-        h += (1-w)*h_val*h_val;
+        g += h_val*r;
+        h += h_val*h_val;
     }
-    h += w*h2_sum;
-    g += w*(a*h_sum-hv[i]+w_val*h2_sum);
 
     FtrlDouble new_w_val = g/h;
     //W[i*k+d] = new_w_val;
@@ -253,19 +263,16 @@ void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
 }
 
 void FtrlProblem::update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht) {
-    FtrlFloat lambda = param->lambda, a = param->a, w = param->w;
+    FtrlFloat lambda = param->lambda;
     const vector<Node*> &Q = data->Q[j];
-    FtrlDouble h_val = ht[j];
     FtrlDouble h = lambda*Q.size(), g = 0;
     for (Node* q : Q) {
         FtrlDouble r = q->val;
         FtrlLong i = q->p_idx;
         FtrlDouble w_val = wt[i];
-        g += ((1-w)*r+w*(1-a))*w_val;
-        h += (1-w)*w_val*w_val;
+        g += w_val*r;
+        h += w_val*w_val;
     }
-    h += w*w2_sum;
-    g += w*(a*w_sum-wu[j]+h_val*w2_sum);
 
     FtrlDouble new_h_val = g/h;
    // H[j*k+d] = new_h_val;
@@ -447,7 +454,7 @@ FtrlDouble FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, con
         valid_count++;
         Z[argmax] = MIN_Z;
     }
-    return double(100*dcg/idcg);
+    return double(dcg/idcg);
 }
 
 FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
@@ -538,25 +545,19 @@ void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
     }
 }
 
-
 void FtrlProblem::update_coordinates() {
     FtrlInt k = param->k;
     FtrlLong m = data->m, n = data->n;
-    FtrlInt nr_th = param->nr_threads;
-    vector<FtrlDouble> hv_th(m*nr_th,0.0);
-    vector<FtrlDouble> wu_th(n*nr_th,0.0);
     for (FtrlInt d = 0; d < k; d++) {
-         FtrlDouble *u = &WT[d*m];
-         FtrlDouble *v = &HT[d*n];
-         update_R(u, v, true);
-         for (FtrlInt s = 0; s < 5; s++) {
-            cache_w(u, wu_th.data());
+        FtrlDouble *u = &WT[d*m];
+        FtrlDouble *v = &HT[d*n];
+        update_R(u, v, true);
+        for (FtrlInt s = 0; s < 5; s++) {
 #pragma omp parallel for schedule(guided)
             for (FtrlLong j = 0; j < n; j++) {
                 if (data->Q[j].size())
                     update_h(j, u, v);
             }
-            cache_h(v, hv_th.data());
 #pragma omp parallel for schedule(guided)
             for (FtrlLong i = 0; i < m; i++) {
                 if (data->P[i].size())
@@ -651,7 +652,7 @@ void FtrlProblem::solve() {
     update_R();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate(10);
+        validate_ndcg(10);
         print_epoch_info();
         if (t%3 == 2 && test_with_two_data) {
             validate_test(10);
