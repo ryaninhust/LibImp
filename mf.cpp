@@ -129,6 +129,7 @@ void FtrlData::subsample(FtrlInt repeat) {
         for(FtrlInt i = 0; i<size; i++) {
             Node *node = &R[i];
             R.push_back(Node(node->p_idx, rand()%n, 0));
+            //R.push_back(Node(rand()%m, rand()%n, 0));
             l++;
         }
     }
@@ -523,24 +524,24 @@ void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
     if (add) {
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = R[i]; 
-            r.val += wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &R[i];
+            r->val += wt[r->p_idx]*ht[r->q_idx];
         }
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = RT[i]; 
-            r.val += wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &RT[i];
+            r->val += wt[r->p_idx]*ht[r->q_idx];
         }
     } else {
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = R[i]; 
-            r.val -= wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &R[i];
+            r->val -= wt[r->p_idx]*ht[r->q_idx];
         }
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = RT[i]; 
-            r.val -= wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &RT[i];
+            r->val -= wt[r->p_idx]*ht[r->q_idx];
         }
     }
 }
