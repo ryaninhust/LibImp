@@ -447,7 +447,7 @@ FtrlDouble FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, con
         valid_count++;
         Z[argmax] = MIN_Z;
     }
-    return double(100*dcg/idcg);
+    return double(dcg/idcg);
 }
 
 FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
@@ -516,24 +516,24 @@ void FtrlProblem::update_R(FtrlDouble *wt, FtrlDouble *ht, bool add) {
     if (add) {
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = R[i]; 
-            r.val += wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &R[i];
+            r->val += wt[r->p_idx]*ht[r->q_idx];
         }
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = RT[i]; 
-            r.val += wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &RT[i];
+            r->val += wt[r->p_idx]*ht[r->q_idx];
         }
     } else {
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = R[i]; 
-            r.val -= wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &R[i];
+            r->val -= wt[r->p_idx]*ht[r->q_idx];
         }
 #pragma omp parallel for schedule(static)
         for (FtrlLong i = 0; i < l; i++ ) {
-            Node r = RT[i]; 
-            r.val -= wt[r.p_idx]*ht[r.q_idx];
+            Node* r = &RT[i];
+            r->val -= wt[r->p_idx]*ht[r->q_idx];
         }
     }
 }
@@ -646,8 +646,6 @@ void FtrlProblem::cache_h(FtrlDouble *ht, FtrlDouble *hv_th) {
 void FtrlProblem::solve() {
     cout<<"Using "<<param->nr_threads<<" threads"<<endl;
     print_header_info();
-    if (param->model_path != "")
-        load();
     update_R();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
