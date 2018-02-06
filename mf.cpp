@@ -653,7 +653,7 @@ void FtrlProblem::solve() {
     update_R();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate_ndcg(10);
+        validate(10);
         print_epoch_info();
         if (t%3 == 2 && test_with_two_data) {
             validate_test(10);
