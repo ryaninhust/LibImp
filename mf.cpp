@@ -495,11 +495,22 @@ FtrlDouble FtrlProblem::cal_reg() {
 
 void FtrlProblem::update_R() {
     vector<Node> &R = data->R;
+    vector<Node> &RT = data->RT;
     FtrlLong l = data->l, m = data->m, n = data->n;
     FtrlInt k = param->k;
 #pragma omp parallel for schedule(static)
     for (FtrlLong i = 0; i < l; i++) {
         Node* node = &R[i];
+        FtrlDouble *w = WT.data()+node->p_idx;
+        FtrlDouble *h = HT.data()+node->q_idx;
+        FtrlDouble r = 0.0;
+        for (FtrlInt d = 0; d < k ; d++)
+            r += w[d*m]*h[d*n];
+        node->val -= r;
+    }
+#pragma omp parallel for schedule(static)
+    for (FtrlLong i = 0; i < l; i++) {
+        Node* node = &RT[i];
         FtrlDouble *w = WT.data()+node->p_idx;
         FtrlDouble *h = HT.data()+node->q_idx;
         FtrlDouble r = 0.0;
@@ -651,10 +662,10 @@ void FtrlProblem::solve() {
         update_coordinates();
         validate(10);
         print_epoch_info();
-        if (t%3 == 2 && test_with_two_data) {
-            validate_test(10);
-            print_epoch_info_test();
-        }
+        //if (t%3 == 2 && test_with_two_data) {
+        //    validate_test(10);
+        //    print_epoch_info_test();
+        //}
     }
     if (param->predict_path != "")
         predict_item(10);
