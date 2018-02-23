@@ -76,7 +76,9 @@ public:
     vector<FtrlFloat> WT, HT;
 
     FtrlInt t;
-    FtrlDouble obj, reg, tr_loss, va_loss;
+    FtrlDouble obj, reg, tr_loss;
+    vector<FtrlDouble> va_loss;
+
     FtrlFloat start_time;
     FtrlFloat U_time, C_time, W_time, H_time, I_time, R_time;
 
@@ -95,17 +97,18 @@ public:
     void load();
 
     void initialize();
+    void init_va_loss(FtrlInt size);
     void solve();
     void update_R();
     void update_R(FtrlDouble *wt, FtrlDouble *ht, bool add);
 
-    void validate(const FtrlInt &topk);
-    void validate_test(const FtrlInt &topk);
-    void validate_ndcg(const FtrlInt &topk);
+    void validate(const vector<FtrlInt> &topks);
+    void validate_test(const vector<FtrlInt> &topks);
+    void validate_ndcg(const vector<FtrlInt> &topks);
     void predict_item(const FtrlInt &topk);
     void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
-    FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
-    FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk);
+    FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<FtrlLong> &hit_counts);
+    FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<double> &ndcgs);
     
     void cache_w(FtrlDouble *wt, FtrlDouble *wu_th);
     void cache_h(FtrlDouble *ht, FtrlDouble *hv_th);
@@ -113,7 +116,7 @@ public:
     void update_coordinates();
     void print_epoch_info();
     void print_epoch_info_test();
-    void print_header_info();
+    void print_header_info(vector<FtrlInt> &topks);
 
     bool is_hit(const vector<Node*> p, FtrlLong argmax);
 };
