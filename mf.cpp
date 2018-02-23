@@ -216,7 +216,7 @@ void FtrlProblem::print_header_info(vector<FtrlInt> &topks) {
             cout << "va_p@" << topks[i];
         }
     }
-    cout << "\n";
+    cout << endl;
 }
 
 void FtrlProblem::print_epoch_info() {
@@ -228,7 +228,7 @@ void FtrlProblem::print_epoch_info() {
             cout << setprecision(3) << va_loss[i]*100;
         }
     }
-    cout << "\n";
+    cout << endl;
 } 
 
 void FtrlProblem::print_epoch_info_test() {
@@ -241,7 +241,7 @@ void FtrlProblem::print_epoch_info_test() {
         for (FtrlInt i = 0; i < FtrlInt(va_loss.size()); i++ )
             cout << setprecision(3) << va_loss[i]*100;
     }
-    cout << "\n";
+    cout << endl;
 }
 
 void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
