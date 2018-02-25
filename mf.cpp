@@ -187,7 +187,7 @@ void FtrlProblem::initialize() {
     FtrlLong m = data->m, n = data->n;
     FtrlInt k = param->k;
     t = 0;
-    tr_loss = 0.0, va_loss = 0.0, obj = 0.0, reg=0.0;
+    tr_loss = 0.0, obj = 0.0, reg=0.0;
 
     WT.resize(k*m);
     HT.resize(k*n);
@@ -214,24 +214,35 @@ void FtrlProblem::initialize() {
     start_time = omp_get_wtime();
 }
 
-void FtrlProblem::print_header_info() {
+void FtrlProblem::init_va_loss(FtrlInt size) {
+    va_loss.resize(size);
+    for (FtrlInt i = 0; i < size ; i++) {
+        va_loss[i] = 0.0;
+    }
+}
+
+void FtrlProblem::print_header_info(vector<FtrlInt> &topks) {
     cout.width(4);
     cout << "iter";
     if (!test_data->file_name.empty()) {
-        cout.width(13);
-        cout << "va_p@10";
+        for (FtrlInt i = 0; i < int(topks.size()); i++) {
+            cout.width(12);
+            cout << "va_p@" << topks[i];
+        }
     }
-    cout << "\n";
+    cout << endl;
 }
 
 void FtrlProblem::print_epoch_info() {
     cout.width(4);
     cout << t+1;
     if (!test_data->file_name.empty()) {
-        cout.width(13);
-        cout << setprecision(3) << va_loss*100;
+        for (FtrlInt i = 0; i < int(va_loss.size()); i++) {
+            cout.width(13);
+            cout << setprecision(3) << va_loss[i]*100;
+        }
     }
-    cout << "\n";
+    cout << endl;
 } 
 
 void FtrlProblem::print_epoch_info_test() {
@@ -240,10 +251,12 @@ void FtrlProblem::print_epoch_info_test() {
     cout.width(5);
     cout << " test";
     if (!test_data->file_name.empty()) {
-        cout.width(8);
-        cout << setprecision(3) << va_loss*100;
+        for (FtrlInt i = 0; i < int(va_loss.size()); i++) {
+            cout.width(8);
+            cout << setprecision(3) << va_loss[i]*100;
+        }
     }
-    cout << "\n";
+    cout << endl;
 }
 
 void FtrlProblem::update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht) {
@@ -322,14 +335,15 @@ FtrlDouble FtrlProblem::cal_tr_loss(FtrlLong &l, vector<Node> &R) {
     return loss;
 }
 
-void FtrlProblem::validate(const FtrlInt &topk) {
+void FtrlProblem::validate(const vector<FtrlInt> &topks) {
     FtrlLong n = data->n, m = data->m;
+    FtrlInt nr_th = param->nr_threads;
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = WT.data();
-    FtrlLong hit_count = 0;
+    vector<FtrlLong> hit_counts(nr_th*topks.size(),0);
     FtrlLong valid_samples = 0;
-#pragma omp parallel for schedule(static) reduction(+: valid_samples, hit_count)
+#pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
@@ -339,20 +353,33 @@ void FtrlProblem::validate(const FtrlInt &topk) {
         }
         const FtrlFloat *w = Wp+i;
         predict_candidates(w, Z);
-        hit_count += precision_k(Z, p, tp, topk);
+        precision_k(Z, p, tp, topks, hit_counts);
         valid_samples++;
     }
-    va_loss = hit_count/double(valid_samples*topk);
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] = 0;
+    }
+
+    for (FtrlLong num_th = 0; num_th < nr_th; num_th++) {
+        for (FtrlInt i = 0; i < int(topks.size()); i++) {
+            va_loss[i] += hit_counts[i+num_th*topks.size()];
+        }
+    }
+
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] /= double(valid_samples*topks[i]);
+    }
 }
 
-void FtrlProblem::validate_test(const FtrlInt &topk) {
+void FtrlProblem::validate_test(const vector<FtrlInt> &topks) {
     FtrlLong n = data->n, m = data->m;
+    FtrlInt nr_th = param->nr_threads;
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data_2->PT;
     const FtrlFloat* Wp = WT.data();
-    FtrlLong hit_count = 0;
+    vector<FtrlLong> hit_counts(nr_th*topks.size(),0);
     FtrlLong valid_samples = 0;
-#pragma omp parallel for schedule(static) reduction(+: valid_samples, hit_count)
+#pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
@@ -362,20 +389,33 @@ void FtrlProblem::validate_test(const FtrlInt &topk) {
         }
         const FtrlFloat *w = Wp+i;
         predict_candidates(w, Z);
-        hit_count += precision_k(Z, p, tp, topk);
+        precision_k(Z, p, tp, topks, hit_counts);
         valid_samples++;
     }
-    va_loss = hit_count/double(valid_samples*topk);
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] = 0;
+    }
+
+    for (FtrlLong num_th = 0; num_th < nr_th; num_th++) {
+        for (FtrlInt i = 0; i < int(topks.size()); i++) {
+            va_loss[i] += hit_counts[i+num_th*topks.size()];
+        }
+    }
+
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] /= double(valid_samples*topks[i]);
+    }
 }
 
-void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
+void FtrlProblem::validate_ndcg(const vector<FtrlInt> &topks) {
     FtrlLong n = data->n, m = data->m;
+    FtrlInt nr_th = param->nr_threads;
     const vector<vector<Node*>> &P = data->PT;
     const vector<vector<Node*>> &TP = test_data->PT;
     const FtrlFloat* Wp = WT.data();
-    double ndcg = 0;
+    vector<double> ndcgs(nr_th*topks.size(), 0);
     FtrlLong valid_samples = 0;
-#pragma omp parallel for schedule(static) reduction(+: valid_samples, ndcg)
+#pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (FtrlLong i = 0; i < m; i++) {
         vector<FtrlFloat> Z(n, 0);
         const vector<Node*> p = P[i];
@@ -385,10 +425,22 @@ void FtrlProblem::validate_ndcg(const FtrlInt &topk) {
         }
         const FtrlFloat *w = Wp+i;
         predict_candidates(w, Z);
-        ndcg += ndcg_k(Z, p, tp, topk);
+        ndcg_k(Z, p, tp, topks, ndcgs);
         valid_samples++;
     }
-    va_loss = ndcg/double(valid_samples);
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] = 0;
+    }
+
+    for (FtrlLong num_th = 0; num_th < nr_th; num_th++) {
+        for (FtrlInt i = 0; i < int(topks.size()); i++) {
+            va_loss[i] += ndcgs[i+num_th*topks.size()];
+        }
+    }
+
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        va_loss[i] /= double(valid_samples);
+    }
 }
 
 void FtrlProblem::predict_item(const FtrlInt &topk) {
@@ -437,40 +489,66 @@ bool FtrlProblem::is_hit(const vector<Node*> p, FtrlLong argmax) {
     return false;
 }
 
-FtrlDouble FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
-
+FtrlDouble FtrlProblem::ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<double> &ndcgs) {
+    FtrlInt state = 0;
     FtrlInt valid_count = 0;
-    double dcg = 0.0;
-    double idcg = 0.0;
-    while(valid_count < topk) {
-        FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-        if (is_hit(p, argmax)) {
+    vector<double> dcg(topks.size(), 0.0);
+    vector<double> idcg(topks.size(), 0.0);
+    FtrlInt num_th = omp_get_thread_num();
+    while(state < int(topks.size())) {
+        while(valid_count < topks[state]) {
+            FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(p, argmax)) {
+                Z[argmax] = MIN_Z;
+                continue;
+            }
+            if (is_hit(tp, argmax))
+                dcg[state] += 1/log2(valid_count+2);
+            if (int (tp.size()) > valid_count)
+                idcg[state] += 1/log2(valid_count+2);
+            valid_count++;
             Z[argmax] = MIN_Z;
-            continue;
         }
-        if (is_hit(tp, argmax))
-            dcg += 1/log2(valid_count+2);
-        if (int (tp.size()) > valid_count)
-           idcg += 1/log2(valid_count+2);
-        valid_count++;
-        Z[argmax] = MIN_Z;
+        state++;
     }
-    return double(dcg/idcg);
+
+    for (FtrlInt i = 1; i < int(topks.size()); i++) {
+        dcg[i] += dcg[i-1];
+        idcg[i] += idcg[i-1];
+    }
+
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        ndcgs[i+num_th*topks.size()] += dcg[i]/idcg[i];
+    }
+    return 0.0;
+   //return double(dcg/idcg);
 }
 
-FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const FtrlInt &topk) {
-
+FtrlLong FtrlProblem::precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<FtrlInt> &hit_counts) {
+    FtrlInt state = 0;
     FtrlInt valid_count = 0;
-    FtrlInt hit_count = 0;
-    while(valid_count < topk) {
-        FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-        if (is_hit(tp, argmax)) {
-            hit_count++;
+    vector<FtrlInt> hit_count(topks.size(), 0);
+    FtrlInt num_th = omp_get_thread_num();
+    while(state < int(topks.size()) ) {
+        while(valid_count < topks[state]) {
+            FtrlLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(tp, argmax)) {
+                hit_count[state]++;
+            }
+            valid_count++;
+            Z[argmax] = MIN_Z;
         }
-        valid_count++;
-        Z[argmax] = MIN_Z;
     }
-    return hit_count;
+
+    for (FtrlInt i = 1; i < int(topks.size()); i++) {
+        hit_count[i] += hit_count[i-1];
+    }
+
+    for (FtrlInt i = 0; i < int(topks.size()); i++) {
+        hit_counts[i+num_th*topks.size()] += hit_count[i];
+    }
+    return 0;
+    //return hit_count;
 }
 
 
@@ -503,11 +581,22 @@ FtrlDouble FtrlProblem::cal_reg() {
 
 void FtrlProblem::update_R() {
     vector<Node> &R = data->R;
+    vector<Node> &RT = data->RT;
     FtrlLong l = data->l, m = data->m, n = data->n;
     FtrlInt k = param->k;
 #pragma omp parallel for schedule(static)
     for (FtrlLong i = 0; i < l; i++) {
         Node* node = &R[i];
+        FtrlDouble *w = WT.data()+node->p_idx;
+        FtrlDouble *h = HT.data()+node->q_idx;
+        FtrlDouble r = 0.0;
+        for (FtrlInt d = 0; d < k ; d++)
+            r += w[d*m]*h[d*n];
+        node->val -= r;
+    }
+#pragma omp parallel for schedule(static)
+    for (FtrlLong i = 0; i < l; i++) {
+        Node* node = &RT[i];
         FtrlDouble *w = WT.data()+node->p_idx;
         FtrlDouble *h = HT.data()+node->q_idx;
         FtrlDouble r = 0.0;
@@ -647,21 +736,21 @@ void FtrlProblem::cache_h(FtrlDouble *ht, FtrlDouble *hv_th) {
 
 void FtrlProblem::solve() {
     cout<<"Using "<<param->nr_threads<<" threads"<<endl;
-    print_header_info();
-    if (param->model_path != "")
-        load();
+    init_va_loss(9);
+    vector<FtrlInt> topks(9,0);
+    topks[0] = 1; topks[1] = 2; topks[2] = 3;
+    topks[3] = 4; topks[4] = 5; topks[5] = 6;
+    topks[6] = 7; topks[7] = 8; topks[8] = 9;
+    print_header_info(topks);
     update_R();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate(10);
+        validate_ndcg(topks);
         print_epoch_info();
-        if (t%3 == 2 && test_with_two_data) {
-            validate_test(10);
-            print_epoch_info_test();
-        }
+        //if (t%3 == 2 && test_with_two_data) {
+        //    validate_test(10);
+        //    print_epoch_info_test();
+        //}
     }
-    if (param->predict_path != "")
-        predict_item(10);
-    save();
 }
 
