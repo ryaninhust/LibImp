@@ -45,12 +45,11 @@ class FtrlData {
 public:
     string file_name;
     FtrlLong l, m, n;
+    vector<Node> raw_data;
     vector<Node> R;
+    vector<FtrlLong> Cptr_R;
     vector<Node> RT;
-    vector<vector<Node*>> P;
-    vector<vector<Node*>> Q;
-    vector<vector<Node*>> PT;
-    vector<vector<Node*>> QT;
+    vector<FtrlLong> Cptr_RT;
 
     FtrlData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
     void transpose();
