@@ -31,11 +31,10 @@ public:
 };
 
 struct smat {
-    vector<int> row_ptr;
-    vector<long> col_idx;
-    vector<long> val;
-}
-
+    vector<ImpLong> row_ptr;
+    vector<ImpLong> col_idx;
+    vector<ImpLong> val;
+};
 
 class ImpData {
 public:
@@ -47,6 +46,18 @@ public:
     ImpData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
     void read();
     void print_data_info();
+    class Compare {
+        public:
+            const ImpLong *row_idx;
+            const ImpLong *col_idx;
+            Compare(const ImpLong *row_idx_, const ImpLong *col_idx_) {
+                row_idx = row_idx_;
+                col_idx = col_idx_;
+            }
+            bool operator()(size_t x, size_t y) const {
+                return  (row_idx[x] < row_idx[y]) || ((row_idx[x] == row_idx[y]) && (col_idx[x]<= col_idx[y]));
+            }
+    };
 };
 
 class ImpProblem {
@@ -78,8 +89,8 @@ public:
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update_w(ImpLong i, ImpDouble *wt, ImpDouble *ht);
-    void update_h(ImpLong j, ImpDouble *wt, ImpDouble *ht);
+    void update_w(ImpLong i, ImpInt d, ImpDouble *wt, ImpDouble *ht);
+    void update_h(ImpLong j, ImpInt d, ImpDouble *wt, ImpDouble *ht);
     void save();
     void load();
 
@@ -91,16 +102,16 @@ public:
     void validate(const vector<ImpInt> &topks);
     void validate_ndcg(const vector<ImpInt> &topks);
     void predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z);
-    ImpLong precision_k(vector<ImpFloat> &Z, long i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
-    ImpDouble ndcg_k(vector<ImpFloat> &Z, long i, const vector<ImpInt> &topks, vector<double> &ndcgs);
+    ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
+    ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
-    void cache_w(ImpDouble *wt, ImpDouble *wu_th);
-    void cache_h(ImpDouble *ht, ImpDouble *hv_th);
+    void cache_w(ImpDouble *ut);
+    void cache_h(ImpDouble *vt);
 
     void update_coordinates();
     void print_epoch_info();
     void print_header_info(vector<ImpInt> &topks);
 
-    bool is_hit(const ImpData &data, long i , ImpLong argmax);
+    bool is_hit(const smat &R, ImpLong i, ImpLong argmax);
 };
 

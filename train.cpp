@@ -10,7 +10,7 @@
 struct Option
 {
     shared_ptr<Parameter> param;
-    FtrlInt verbose;
+    ImpInt verbose;
     string data_path, test_path, test_path_2;
     bool test_with_two_data;
 };
@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
         Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
-        shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
-        shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
+        shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path);
+        shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
 
         data->read();
 
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
             test_data->read();
         }
 
-        FtrlProblem prob(data, test_data, option.param);
+        ImpProblem prob(data, test_data, option.param);
         prob.initialize();
         prob.solve();
     }

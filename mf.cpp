@@ -34,7 +34,7 @@ void ImpProblem::save() {
     {
         for(ImpLong i = 0; i < size ; i++)
         {
-            ImpFloat *ptr1 = ptr + i ;
+            ImpFloat *ptr1 = ptr + i*param->k ;
             f << prefix << i << " ";
             //if(isnan(ptr1[0]))
             if(false)
@@ -47,15 +47,15 @@ void ImpProblem::save() {
             {
                 f << "T ";
                 for(ImpLong d = 0; d < param->k; d++)
-                    f << ptr1[d*size] << " ";
+                    f << ptr1[d] << " ";
             }
             f << endl;
         }
 
     };
 
-    write(WT.data(), m, 'w');
-    write(HT.data(), n, 'h');
+    write(W.data(), m, 'w');
+    write(H.data(), n, 'h');
 
     f.close();
 
@@ -128,7 +128,7 @@ void ImpData::read() {
         RT.val[idx] = val;
         perm[idx] = idx;
     }
-    sort(perm.begin(), perm.end(), compare);
+    sort(perm.begin(), perm.end(),Compare(R.col_idx.data(), RT.col_idx.data()));
     for(idx = 0; idx < l; idx++ ) {
        R.col_idx[idx] = R.col_idx[perm[idx]];
        R.val[idx] = RT.val[perm[idx]];
@@ -136,7 +136,7 @@ void ImpData::read() {
     for(ImpLong i = 1; i < m+1; ++i) {
         R.row_ptr[i] += R.row_ptr[i-1];
     }
-    for(ImpLong j = 1; j < n+1; ++i) {
+    for(ImpLong j = 1; j < n+1; ++j) {
         RT.row_ptr[j] += RT.row_ptr[j-1];
     }
     for(ImpLong i = 0; i < m; ++i) {
@@ -144,15 +144,13 @@ void ImpData::read() {
             ImpLong c = R.col_idx[j];
             RT.val[RT.row_ptr[c]] = R.val[j];
             RT.row_ptr[c]++;
+        }
     }
     for(ImpLong j = n; j > 0; --j)
         RT.row_ptr[j] = RT.row_ptr[j-1];
-    Rt.row_ptr[0] = 0;
+    RT.row_ptr[0] = 0;
 }
 
-bool compare(size_t i, size_t j) {
-    return R.col_idx[i] < R.col_idx[j] || (R.col_idx == R.col_idx[j] && RT.col_idx[i] < RT.col_idx[j]);
-}
 
 void ImpData::print_data_info() {
     cout << "Data: " << file_name << "\t";
@@ -188,7 +186,7 @@ void ImpProblem::initialize() {
             W[j*k+d] = WT[d*m+j];
         }
         for (ImpLong j = 0; j < n; j++) {
-            if (data->Q[j].size()) {
+            if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j]) {
                 HT[d*n+j] = 0;
                 H[j*k+d] = HT[d*n+j];
             } else {
@@ -231,14 +229,15 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update_w(ImpLong i, ImpDouble *wt, ImpDouble *ht) {
+void ImpProblem::update_w(ImpLong i, ImpInt d, ImpDouble *wt, ImpDouble *ht) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<Node*> &P = data->PT[i];
+    ImpInt k = param->k;
+    const smat &R = data->R;
     ImpDouble w_val = wt[i];
-    ImpDouble h = lambda*P.size(), g = 0;
-    for (Node* p : P) {
-        ImpDouble r = p->val;
-        ImpLong j = p->q_idx;
+    ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
+    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
+        ImpDouble r = R.val[idx];
+        ImpLong j = R.col_idx[idx];
         ImpDouble h_val = ht[j];
         g += ((1-w)*r+w*(1-a))*h_val;
         h += (1-w)*h_val*h_val;
@@ -247,18 +246,19 @@ void ImpProblem::update_w(ImpLong i, ImpDouble *wt, ImpDouble *ht) {
     g += w*(a*h_sum-hv[i]+w_val*h2_sum);
 
     ImpDouble new_w_val = g/h;
-    //W[i*k+d] = new_w_val;
+    W[i*k+d] = new_w_val;
     wt[i] = new_w_val;
 }
 
-void ImpProblem::update_h(ImpLong j, ImpDouble *wt, ImpDouble *ht) {
+void ImpProblem::update_h(ImpLong j,ImpInt d, ImpDouble *wt, ImpDouble *ht) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
-    const vector<Node*> &Q = data->Q[j];
+    ImpInt k = param->k;
+    const smat &RT = data->RT;
     ImpDouble h_val = ht[j];
-    ImpDouble h = lambda*Q.size(), g = 0;
-    for (Node* q : Q) {
-        ImpDouble r = q->val;
-        ImpLong i = q->p_idx;
+    ImpDouble h = lambda*(RT.row_ptr[j+1] - RT.row_ptr[j]), g = 0;
+    for (ImpLong idx = RT.row_ptr[j]; idx < RT.row_ptr[j+1]; ++idx) {
+        ImpDouble r = RT.val[idx];
+        ImpLong i = RT.col_idx[idx];
         ImpDouble w_val = wt[i];
         g += ((1-w)*r+w*(1-a))*w_val;
         h += (1-w)*w_val*w_val;
@@ -267,71 +267,67 @@ void ImpProblem::update_h(ImpLong j, ImpDouble *wt, ImpDouble *ht) {
     g += w*(a*w_sum-wu[j]+h_val*w2_sum);
 
     ImpDouble new_h_val = g/h;
-   // H[j*k+d] = new_h_val;
+    H[j*k+d] = new_h_val;
     ht[j] = new_h_val;
 }
 
 
-ImpDouble ImpProblem::cal_loss(ImpLong &l, vector<Node> &R) {
+ImpDouble ImpProblem::cal_loss(ImpLong &l, smat &R) {
     ImpInt k = param->k;
     ImpDouble loss = 0, a = param->a;
     ImpLong m = data->m, n = data->n;
 #pragma omp parallel for schedule(static) reduction(+:loss)
-    for (ImpLong i = 0; i < l; i++) {
-        Node* node = &R[i];
-        if (node->p_idx+1>data->m || node->q_idx+1>data->n)
-            continue;
-        ImpDouble *w = WT.data()+node->p_idx;
-        ImpDouble *h = HT.data()+node->q_idx;
-        ImpDouble r = 0;
-        for (ImpInt d = 0; d < k; d++)
-            r += w[d*m] * h[d*n];
-        loss += (r-node->val)*(r-node->val);
-        loss -= param->w*(a-r)*(a-r);
+    for (ImpLong i = 0; i < m; i++) {
+        ImpDouble *w = W.data()+i*k;
+        for(ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
+            if (R.col_idx[idx] > data->n)
+                continue;
+            ImpDouble *h = H.data()+ R.col_idx[idx]*k ;
+            ImpDouble r = 0;
+            for (ImpInt d = 0; d < k; d++)
+                r += w[d] * h[d];
+            loss += R.val[idx]*R.val[idx];
+            loss -= param->w*(a-r)*(a-r);
+        }
     }
 #pragma omp parallel for schedule(static) reduction(+:loss)
     for (ImpLong i = 0; i < m; i++) {
+        ImpDouble *w = W.data()+i*k;
         for (ImpLong j = 0; j < n; j++) {
-            ImpDouble *w = WT.data()+i;
-            ImpDouble *h = HT.data()+j;
+            ImpDouble *h = H.data()+j*k;
             ImpDouble r = 0.0;
             for (ImpInt d = 0; d < k; d++)
-                r += w[d*m] * h[d*n];
+                r += w[d] * h[d];
             loss += param->w*(a-r)*(a-r);
         }
     }
     return loss;
 }
 
-ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, vector<Node> &R) {
+ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, smat &R) {
     ImpDouble loss = 0;
 #pragma omp parallel for schedule(static) reduction(+:loss)
-    for (ImpLong i = 0; i < l; i++) {
-        Node* node = &R[i];
-        loss += node->val*node->val;
-    }
+    for (ImpLong idx = 0; idx < l; ++idx)
+        loss += R.val[idx]*R.val[idx];
     return loss;
 }
 
 void ImpProblem::validate(const vector<ImpInt> &topks) {
     ImpLong n = data->n, m = data->m;
-    ImpInt nr_th = param->nr_threads;
-    const vector<vector<Node*>> &P = data->PT;
-    const vector<vector<Node*>> &TP = test_data->PT;
-    const ImpFloat* Wp = WT.data();
+    ImpInt nr_th = param->nr_threads, k = param->k;
+    const smat &testR = test_data->R;
+    const ImpFloat* Wp = W.data();
     vector<ImpLong> hit_counts(nr_th*topks.size(),0);
     ImpLong valid_samples = 0;
 #pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (ImpLong i = 0; i < m; i++) {
         vector<ImpFloat> Z(n, 0);
-        const vector<Node*> p = P[i];
-        const vector<Node*> tp = TP[i];
-        if (!tp.size()) {
+        if (testR.row_ptr[i+1]==testR.row_ptr[i]) {
             continue;
         }
-        const ImpFloat *w = Wp+i;
+        const ImpFloat *w = Wp+i*k;
         predict_candidates(w, Z);
-        precision_k(Z, p, tp, topks, hit_counts);
+        precision_k(Z, i, topks, hit_counts);
         valid_samples++;
     }
     for (ImpInt i = 0; i < int(topks.size()); i++) {
@@ -351,23 +347,20 @@ void ImpProblem::validate(const vector<ImpInt> &topks) {
 
 void ImpProblem::validate_ndcg(const vector<ImpInt> &topks) {
     ImpLong n = data->n, m = data->m;
-    ImpInt nr_th = param->nr_threads;
-    const vector<vector<Node*>> &P = data->PT;
-    const vector<vector<Node*>> &TP = test_data->PT;
-    const ImpFloat* Wp = WT.data();
+    ImpInt nr_th = param->nr_threads, k = param->k;
+    const smat &testR = test_data->R;
+    const ImpFloat* Wp = W.data();
     vector<double> ndcgs(nr_th*topks.size(),0);
     ImpLong valid_samples = 0;
 #pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (ImpLong i = 0; i < m; i++) {
         vector<ImpFloat> Z(n, 0);
-        const vector<Node*> p = P[i];
-        const vector<Node*> tp = TP[i];
-        if (!tp.size()) {
+        if (testR.row_ptr[i+1]==testR.row_ptr[i]) {
             continue;
         }
-        const ImpFloat *w = Wp+i;
+        const ImpFloat *w = Wp+i*k;
         predict_candidates(w, Z);
-        ndcg_k(Z, p, tp, topks, ndcgs);
+        ndcg_k(Z, i, topks, ndcgs);
         valid_samples++;
     }
     for (ImpInt i = 0; i < int(topks.size()); i++) {
@@ -387,25 +380,25 @@ void ImpProblem::validate_ndcg(const vector<ImpInt> &topks) {
 
 void ImpProblem::predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z) {
     ImpInt k = param->k;
-    ImpLong n = data->n, m = data->m;
+    ImpLong n = data->n;
     ImpFloat *Hp = HT.data();
-    for(ImpInt d = 0; d < k; d++) {
-        for (ImpLong j = 0; j < n; j++) {
-            Z[j] += w[d*m]*Hp[d*n+j];
+    for(ImpInt d = 0; d < k; ++d) {
+        for (ImpLong j = 0; j < n; ++j) {
+            Z[j] += w[d]*Hp[d*n+j];
         }
     }
 }
 
-bool ImpProblem::is_hit(const vector<Node*> p, ImpLong argmax) {
-    for (Node* pp : p) {
-        ImpLong idx = pp->q_idx;
-        if (idx == argmax)
+bool ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
+    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; ++i) {
+        ImpLong j = R.col_idx[idx];
+        if (j == argmax)
             return true;
     }
     return false;
 }
 
-ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<ImpInt> &topks, vector<double> &ndcgs) {
+ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs) {
     ImpInt state = 0;
     ImpInt valid_count = 0;
     vector<double> dcg(topks.size(),0.0);
@@ -414,13 +407,13 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, const vector<Node*> &p, const 
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(p, argmax)) {
+            if (is_hit(data->R, i, argmax)) {
                 Z[argmax] = MIN_Z;
                 continue;
             }
-            if (is_hit(tp, argmax))
+            if (is_hit(test_data->R, i, argmax))
                 dcg[state] += 1/log2(valid_count+2);
-            if (int (tp.size()) > valid_count)
+            if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
                 idcg[state] += 1/log2(valid_count+2);
             valid_count++;
             Z[argmax] = MIN_Z;
@@ -440,7 +433,7 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, const vector<Node*> &p, const 
     //return double(dcg/idcg);
 }
 
-ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts) {
+ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts) {
     ImpInt state = 0;
     ImpInt valid_count = 0;
     vector<ImpInt> hit_count(topks.size(), 0);
@@ -448,7 +441,7 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, const vector<Node*> &p, con
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(tp, argmax)) {
+            if (is_hit(test_data->R, i, argmax)) {
                 hit_count[state]++;
             }
             valid_count++;
@@ -472,24 +465,24 @@ ImpDouble ImpProblem::cal_reg() {
     ImpInt k = param->k;
     ImpLong m = data->m, n = data->n;
     ImpDouble reg = 0, lambda = param->lambda;
-    const vector<vector<Node*>> &P = data->P;
-    const vector<vector<Node*>> &Q = data->Q; 
-    //TODO change W to WT
+    smat &R = data->R;
+    smat &RT = data->RT;
+
     for (ImpLong i = 0; i < m; i++) {
-        ImpLong nnz = P[i].size();
-        ImpDouble* w = WT.data()+i;
+        ImpLong nnz = R.row_ptr[i+1] - R.row_ptr[i];
+        ImpDouble* w = W.data()+i*k;
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
-            inner += w[d*m] * w[d*m];
+            inner += w[d] * w[d];
         reg += nnz*lambda*inner;
     }
-    //TODO change H to HT
-    for (ImpLong i = 0; i < n; i++) {
-        ImpLong nnz = Q[i].size();
-        ImpDouble* h = HT.data()+i;
+
+    for (ImpLong j = 0; j < n; j++) {
+        ImpLong nnz = RT.row_ptr[j+1] - RT.row_ptr[j];
+        ImpDouble* h = H.data()+j*k;
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
-            inner += h[d*n]*h[d*n];
+            inner += h[d]*h[d];
         reg += nnz*lambda*inner;
     }
     return reg;
@@ -528,7 +521,7 @@ void ImpProblem::update_R() {
 void ImpProblem::update_R(ImpDouble *wt, ImpDouble *ht, bool add) {
     smat &R = data->R;
     smat &RT = data->RT;
-    ImpLong l = data->l, m = data->m, n = data->n;
+    ImpLong m = data->m, n = data->n;
     if (add) {
 #pragma omp parallel for schedule(guided)
         for (ImpLong i = 0; i < m; ++i) {
@@ -540,7 +533,7 @@ void ImpProblem::update_R(ImpDouble *wt, ImpDouble *ht, bool add) {
 #pragma omp parallel for schedule(guided)
         for (ImpLong j = 0; j < n; ++j) {
             ImpDouble h = ht[j];
-            for(ImpLong i = RT.row_ptr[ji]; i < RT.row_ptr[j+1]; ++i) {
+            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; ++i) {
                 RT.val[i] += wt[RT.col_idx[i]]*h;
             }
         }
@@ -555,7 +548,7 @@ void ImpProblem::update_R(ImpDouble *wt, ImpDouble *ht, bool add) {
 #pragma omp parallel for schedule(guided)
         for (ImpLong j = 0; j < n; ++j) {
             ImpDouble h = ht[j];
-            for(ImpLong i = RT.row_ptr[ji]; i < RT.row_ptr[j+1]; ++i) {
+            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; ++i) {
                 RT.val[i] -= wt[RT.col_idx[i]]*h;
             }
         }
@@ -566,103 +559,85 @@ void ImpProblem::update_R(ImpDouble *wt, ImpDouble *ht, bool add) {
 void ImpProblem::update_coordinates() {
     ImpInt k = param->k;
     ImpLong m = data->m, n = data->n;
-    ImpInt nr_th = param->nr_threads;
-    vector<ImpDouble> hv_th(m*nr_th,0.0);
-    vector<ImpDouble> wu_th(n*nr_th,0.0);
     for (ImpInt d = 0; d < k; d++) {
          ImpDouble *u = &WT[d*m];
          ImpDouble *v = &HT[d*n];
          update_R(u, v, true);
          for (ImpInt s = 0; s < 5; s++) {
-            cache_w(u, wu_th.data());
+            cache_w(u);
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
-                if (data->Q[j].size())
-                    update_h(j, u, v);
+                if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
+                    update_h(j, d, u, v);
             }
-            cache_h(v, hv_th.data());
+            cache_h(v);
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
-                if (data->P[i].size())
-                    update_w(i, u, v);
+                if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
+                    update_w(i, d, u, v);
             }
         }
         update_R(u, v, false); 
     }
 }
 
-void ImpProblem::cache_w(ImpDouble *wt, ImpDouble *wu_th) {
+void ImpProblem::cache_w(ImpDouble *ut) {
     ImpLong m = data->m, n = data->n;
     ImpInt k = param->k;
     ImpFloat sq = 0, sum = 0;
-    ImpInt nr_th = param->nr_threads;
+    vector<ImpDouble> uTWt(k,0);
 #pragma omp parallel for schedule(static)
-    for (ImpInt num_th = 0; num_th < nr_th; num_th++)
-        for (ImpLong i = 0; i < n; i++)
-            wu_th[n*num_th+i] = 0;
-#pragma omp parallel for schedule(static)
-    for (ImpLong i = 0; i < n; i++) {
-        wu[i] = 0;
+    for (ImpLong j = 0; j < n; ++j) {
+        wu[j] = 0;
     }
 #pragma omp parallel for schedule(static) reduction(+:sq,sum)
-    for (ImpInt j = 0; j < m; j++) {
-        sq +=  wt[j]*wt[j];
-        sum += wt[j];
+    for (ImpInt i = 0; i < m; ++i) {
+        sq +=  ut[i]*ut[i];
+        sum += ut[i];
     }
 #pragma omp parallel for schedule(static)
-    for (ImpInt di = 0; di < k; di++) {
-        ImpInt num_th = omp_get_thread_num();
-        ImpDouble uTWt = 0;
-        for (ImpLong j = 0; j < m; j++) {
-            uTWt += wt[j] * WT[di*m+j];
-        }
-        for (ImpLong i = 0; i < n; i++) {
-            wu_th[n*num_th+i] += uTWt * HT[di*n+i];
+    for (ImpInt d = 0; d < k; ++d) {
+        for (ImpLong i = 0; i < m; i++) {
+            uTWt[d] += ut[i] * WT[d*m+i];
         }
     }
 #pragma omp parallel for schedule(static)
-    for (ImpLong i = 0; i < n; i++)
-        for(ImpInt num_th = 0; num_th < nr_th; num_th++)
-            wu[i] += wu_th[num_th*n+i];
+    for (ImpLong j = 0; j < n; ++j) {
+        for (ImpInt d = 0; d < k; ++d) {
+            wu[j] += uTWt[d] * H[j*k+d];
+        }
+    }
     w_sum = sum;
     w2_sum = sq;
 }
 
-void ImpProblem::cache_h(ImpDouble *ht, ImpDouble *hv_th) {
+void ImpProblem::cache_h(ImpDouble *vt) {
     ImpLong m = data->m, n = data->n;
     ImpInt k = param->k;
     ImpFloat sq = 0, sum = 0;
-    ImpInt nr_th =  param->nr_threads;
+    vector<ImpDouble> vTHt(k,0); 
 #pragma omp parallel for schedule(static)
-    for (ImpInt num_th = 0; num_th < nr_th; num_th++)
-        for (ImpLong j = 0; j < m; j++)
-            hv_th[m*num_th+j] = 0;
-#pragma omp parallel for schedule(static)
-    for (ImpLong j = 0; j < m; j++) {
-        hv[j] = 0;
+    for (ImpLong i = 0; i < m; i++) {
+        hv[i] = 0;
     }
 #pragma omp parallel for schedule(static) reduction(+:sq,sum)
     for (ImpInt j = 0; j < n; j++) {
-        sq +=  ht[j]*ht[j];
-        sum += ht[j];
+        sq +=  vt[j]*vt[j];
+        sum += vt[j];
     }
 #pragma omp parallel for schedule(static)
-    for (ImpInt di = 0; di < k; di++) {
-        ImpDouble uTWt = 0;
-        ImpInt num_th = omp_get_thread_num();
-        for (ImpLong i = 0; i < n; i++) {
-            uTWt += ht[i] * HT[di*n+i];
-        }
-        for (ImpLong j = 0; j < m; j++) {
-            hv_th[m*num_th+j] += uTWt * WT[di*m+j];
+    for (ImpInt d = 0; d < k; ++d) {
+        for (ImpLong j = 0; j < n; ++j) {
+            vTHt[d] += vt[j]*HT[d*n+j];
         }
     }
 #pragma omp parallel for schedule(static)
-    for (ImpLong j = 0; j < m; j++) {
-        for(ImpInt num_th = 0; num_th < nr_th; num_th++) {
-            hv[j] += hv_th[m*num_th+j];
+    for (ImpLong i = 0; i < m; ++i) {
+        for (ImpInt d = 0; d < k; ++d) {
+            hv[i] += vTHt[d]*W[i*k+d];
         }
     }
+
     h_sum = sum;
     h2_sum = sq;
 }
@@ -678,10 +653,6 @@ void ImpProblem::solve() {
         update_coordinates();
         validate(topks);
         print_epoch_info();
-        //if (t%3 == 2 && test_with_two_data) {
-        //    validate_test(10);
-        //    print_epoch_info_test();
-        //}
     }
 }
 
