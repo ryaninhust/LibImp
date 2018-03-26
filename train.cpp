@@ -190,34 +190,16 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
-        shared_ptr<FtrlData> test_data_2;
-        if (option.test_with_two_data)
-            test_data_2 = make_shared<FtrlData>(option.test_path_2);
 
         data->read();
-        data->transpose();
 
         if (!test_data->file_name.empty()) {
             test_data->read();
-            test_data->transpose();
         }
 
-        if (option.test_with_two_data && !test_data_2->file_name.empty()) {
-            test_data_2->read();
-            test_data_2->transpose();
-        }
-
-        if (!option.test_with_two_data) {
-            FtrlProblem prob(data, test_data, option.param);
-            prob.initialize();
-            prob.solve();
-        }
-        else
-        {
-            FtrlProblem prob(data, test_data, test_data_2, option.param);
-            prob.initialize();
-            prob.solve();
-        }
+        FtrlProblem prob(data, test_data, option.param);
+        prob.initialize();
+        prob.solve();
     }
     catch (invalid_argument &e)
     {

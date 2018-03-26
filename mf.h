@@ -31,8 +31,8 @@ public:
 };
 
 struct smat {
-    vector<int> col_ptr;
-    vector<long> row_idx;
+    vector<int> row_ptr;
+    vector<long> col_idx;
     vector<long> val;
 }
 
@@ -45,7 +45,6 @@ public:
     smat RT;
 
     ImpData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
-    void transpose();
     void read();
     void print_data_info();
 };
@@ -100,7 +99,6 @@ public:
 
     void update_coordinates();
     void print_epoch_info();
-    void print_epoch_info_test();
     void print_header_info(vector<ImpInt> &topks);
 
     bool is_hit(const ImpData &data, long i , ImpLong argmax);
