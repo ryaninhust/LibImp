@@ -162,7 +162,7 @@ void ImpData::read() {
             RT.row_ptr[c]++;
         }
     }
-    for(ImpLong j = n; j > 0; --j)
+    for(ImpLong j = n; j > 0; j--)
         RT.row_ptr[j] = RT.row_ptr[j-1];
     RT.row_ptr[0] = 0;
 }
