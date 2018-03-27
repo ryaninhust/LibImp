@@ -80,24 +80,22 @@ public:
     ImpFloat start_time;
     ImpFloat U_time, C_time, W_time, H_time, I_time, R_time;
 
-    ImpFloat w2_sum, h2_sum;
-    ImpFloat w_sum, h_sum;
-    vector<ImpFloat> wu, hv;
+    ImpFloat sum, sq;
+    vector<ImpFloat> gamma_w, gamma_h;
 
 
     ImpDouble cal_loss(ImpLong &l, smat &R);
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update_w(ImpLong i, ImpInt d, ImpDouble *wt, ImpDouble *ht);
-    void update_h(ImpLong j, ImpInt d, ImpDouble *wt, ImpDouble *ht);
+    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpFloat *ut);
     void save();
     void load();
 
     void initialize();
     void init_va_loss(ImpInt size);
     void solve();
-    void update_R(ImpDouble *wt, ImpDouble *ht, bool add);
+    void update_R(ImpFloat *wt, ImpFloat *ht, bool add);
 
     void validate(const vector<ImpInt> &topks);
     void validate_ndcg(const vector<ImpInt> &topks);
@@ -105,8 +103,7 @@ public:
     ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
     ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
-    void cache_w(ImpDouble *ut);
-    void cache_h(ImpDouble *vt);
+    void cache(vector<ImpFloat> &WT,vector<ImpFloat> &H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
 
     void update_coordinates();
     void print_epoch_info();

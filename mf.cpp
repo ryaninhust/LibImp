@@ -17,7 +17,7 @@ void ImpProblem::save() {
         if(!ptr)
             ptr = data->file_name.c_str();
         else
-            ++ptr;
+            ptr++;
         param->model_path = string(ptr) + ".model";
     }
     ImpLong m = data->m, n = data->n;
@@ -100,9 +100,18 @@ void ImpData::read() {
     string line;
     ifstream fs(file_name);
     //TODO read l m n;
-    l = 100000;
-    m = 3000;
-    n = 2000;
+    while (getline(fs, line)) {
+        istringstream iss(line);
+        l++;
+        ImpLong p_idx, q_idx;
+        iss >> p_idx;
+        iss >> q_idx;
+        m = max(p_idx+1, m);
+        m = max(q_idx+1, n);
+    }
+    fs.close();
+    fs.clear();
+    fs.open(file_name);
     R.row_ptr.resize(m+1);
     RT.row_ptr.resize(n+1);
     R.col_idx.resize(l);
@@ -133,13 +142,13 @@ void ImpData::read() {
        R.col_idx[idx] = R.col_idx[perm[idx]];
        R.val[idx] = RT.val[perm[idx]];
     }
-    for(ImpLong i = 1; i < m+1; ++i) {
+    for(ImpLong i = 1; i < m+1; i++) {
         R.row_ptr[i] += R.row_ptr[i-1];
     }
-    for(ImpLong j = 1; j < n+1; ++j) {
+    for(ImpLong j = 1; j < n+1; j++) {
         RT.row_ptr[j] += RT.row_ptr[j-1];
     }
-    for(ImpLong i = 0; i < m; ++i) {
+    for(ImpLong i = 0; i < m; i++) {
         for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; j++) {
             ImpLong c = R.col_idx[j];
             RT.val[RT.row_ptr[c]] = R.val[j];
@@ -172,8 +181,8 @@ void ImpProblem::initialize() {
     WT.resize(k*m);
     HT.resize(k*n);
 
-    wu.resize(n);
-    hv.resize(m);
+    gamma_w.resize(n);
+    gamma_h.resize(m);
 
 
     default_random_engine engine(0);
@@ -229,34 +238,33 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update_w(ImpLong i, ImpInt d, ImpDouble *wt, ImpDouble *ht) {
+void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpDouble *ut) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
     ImpInt k = param->k;
-    const smat &R = data->R;
-    ImpDouble w_val = wt[i];
+    ImpDouble u_val = u[i];
     ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpDouble r = R.val[idx];
         ImpLong j = R.col_idx[idx];
-        ImpDouble h_val = ht[j];
-        g += ((1-w)*r+w*(1-a))*h_val;
-        h += (1-w)*h_val*h_val;
+        ImpDouble v_val = v[j];
+        g += ((1-w)*r+w*(1-a))*v_val;
+        h += (1-w)*v_val*v_val;
     }
-    h += w*h2_sum;
-    g += w*(a*h_sum-hv[i]+w_val*h2_sum);
+    h += w*sq;
+    g += w*(a*sum-gamma[i]+u_val*sq);
 
-    ImpDouble new_w_val = g/h;
-    W[i*k+d] = new_w_val;
-    wt[i] = new_w_val;
+    ImpDouble new_u_val = g/h;
+    ut[i*k] = new_u_val;
+    u[i] = new_u_val;
 }
 
-void ImpProblem::update_h(ImpLong j,ImpInt d, ImpDouble *wt, ImpDouble *ht) {
+/*void ImpProblem::update_h(ImpLong j,ImpInt d, ImpDouble *wt, ImpDouble *ht) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
     ImpInt k = param->k;
     const smat &RT = data->RT;
     ImpDouble h_val = ht[j];
     ImpDouble h = lambda*(RT.row_ptr[j+1] - RT.row_ptr[j]), g = 0;
-    for (ImpLong idx = RT.row_ptr[j]; idx < RT.row_ptr[j+1]; ++idx) {
+    for (ImpLong idx = RT.row_ptr[j]; idx < RT.row_ptr[j+1]; idx++) {
         ImpDouble r = RT.val[idx];
         ImpLong i = RT.col_idx[idx];
         ImpDouble w_val = wt[i];
@@ -269,7 +277,7 @@ void ImpProblem::update_h(ImpLong j,ImpInt d, ImpDouble *wt, ImpDouble *ht) {
     ImpDouble new_h_val = g/h;
     H[j*k+d] = new_h_val;
     ht[j] = new_h_val;
-}
+}*/
 
 
 ImpDouble ImpProblem::cal_loss(ImpLong &l, smat &R) {
@@ -307,7 +315,7 @@ ImpDouble ImpProblem::cal_loss(ImpLong &l, smat &R) {
 ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, smat &R) {
     ImpDouble loss = 0;
 #pragma omp parallel for schedule(static) reduction(+:loss)
-    for (ImpLong idx = 0; idx < l; ++idx)
+    for (ImpLong idx = 0; idx < l; idx++)
         loss += R.val[idx]*R.val[idx];
     return loss;
 }
@@ -382,15 +390,15 @@ void ImpProblem::predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z) {
     ImpInt k = param->k;
     ImpLong n = data->n;
     ImpFloat *Hp = HT.data();
-    for(ImpInt d = 0; d < k; ++d) {
-        for (ImpLong j = 0; j < n; ++j) {
+    for(ImpInt d = 0; d < k; d++) {
+        for (ImpLong j = 0; j < n; j++) {
             Z[j] += w[d]*Hp[d*n+j];
         }
     }
 }
 
 bool ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
-    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; ++i) {
+    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; i++) {
         ImpLong j = R.col_idx[idx];
         if (j == argmax)
             return true;
@@ -495,23 +503,23 @@ void ImpProblem::update_R() {
     ImpInt k = param->k;
 #pragma omp parallel for schedule(guided)
     for (ImpLong i = 0; i < m; i++) {
-        for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; ++j) {
+        for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; j++) {
             ImpDouble *w = W.data()+i*k;
             ImpDouble *h = H.data()+R.col_idx[j]*k;
             ImpDouble r = 0.0;
-            for (ImpInt d = 0; d < k ; ++d)
+            for (ImpInt d = 0; d < k ; d++)
                 r += w[d]*h[d];
             R.val[j] -= r;
         }
     }
 #pragma omp parallel for schedule(guided)
     for (ImpLong j = 0; j < n; j++) {
-        for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; ++i) {
+        for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; i++) {
             Node* node = &RT[i];
             ImpDouble *w = W.data()+R.col_idx[i]*k;
             ImpDouble *h = H.data()+j*k;
             ImpDouble r = 0.0;
-            for (ImpInt d = 0; d < k ; ++d)
+            for (ImpInt d = 0; d < k ; d++)
                 r += w[d]*h[d];
             RT.val[i] -= r;
         }
@@ -524,31 +532,31 @@ void ImpProblem::update_R(ImpDouble *wt, ImpDouble *ht, bool add) {
     ImpLong m = data->m, n = data->n;
     if (add) {
 #pragma omp parallel for schedule(guided)
-        for (ImpLong i = 0; i < m; ++i) {
+        for (ImpLong i = 0; i < m; i++) {
             ImpDouble w = wt[i];
-            for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; ++j) {
+            for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; j++) {
                 R.val[j] += w*ht[R.col_idx[j]];
             }
         }
 #pragma omp parallel for schedule(guided)
-        for (ImpLong j = 0; j < n; ++j) {
+        for (ImpLong j = 0; j < n; j++) {
             ImpDouble h = ht[j];
-            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; ++i) {
+            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; i++) {
                 RT.val[i] += wt[RT.col_idx[i]]*h;
             }
         }
     } else {
 #pragma omp parallel for schedule(guided)
-        for (ImpLong i = 0; i < m; ++i) {
+        for (ImpLong i = 0; i < m; i++) {
             ImpDouble w = wt[i];
-            for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; ++j) {
+            for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; j++) {
                 R.val[j] -= w*ht[R.col_idx[j]];
             }
         }
 #pragma omp parallel for schedule(guided)
-        for (ImpLong j = 0; j < n; ++j) {
+        for (ImpLong j = 0; j < n; j++) {
             ImpDouble h = ht[j];
-            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; ++i) {
+            for(ImpLong i = RT.row_ptr[j]; i < RT.row_ptr[j+1]; i++) {
                 RT.val[i] -= wt[RT.col_idx[i]]*h;
             }
         }
@@ -562,55 +570,56 @@ void ImpProblem::update_coordinates() {
     for (ImpInt d = 0; d < k; d++) {
          ImpDouble *u = &WT[d*m];
          ImpDouble *v = &HT[d*n];
+         ImpDouble *ut = &W[d];
+         ImpDouble *vt = &H[d];
          update_R(u, v, true);
          for (ImpInt s = 0; s < 5; s++) {
-            cache_w(u);
+            cache(WT, H, gamma_w, u, m, n);
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
-                    update_h(j, d, u, v);
+                    update(data->RT, j, gamma_w, v, u, vt);
             }
-            cache_h(v);
+            cache(HT, W, gamma_h, v, n, m);
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
-                    update_w(i, d, u, v);
+                    update(data->R, i, gamma_h, u, v, ut);
             }
         }
         update_R(u, v, false); 
     }
 }
 
-void ImpProblem::cache_w(ImpDouble *ut) {
-    ImpLong m = data->m, n = data->n;
+void ImpProblem::cache(vector<ImpFloat> &WT, vector<ImpFloat> &H, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n) {
     ImpInt k = param->k;
-    ImpFloat sq = 0, sum = 0;
-    vector<ImpDouble> uTWt(k,0);
+    ImpFloat sq_ = 0, sum_ = 0;
+    vector<ImpDouble> alpha(k,0);
 #pragma omp parallel for schedule(static)
-    for (ImpLong j = 0; j < n; ++j) {
-        wu[j] = 0;
+    for (ImpLong j = 0; j < n; j++) {
+        gamma[j] = 0;
     }
-#pragma omp parallel for schedule(static) reduction(+:sq,sum)
-    for (ImpInt i = 0; i < m; ++i) {
-        sq +=  ut[i]*ut[i];
-        sum += ut[i];
+#pragma omp parallel for schedule(static) reduction(+:sq_,sum_)
+    for (ImpInt i = 0; i < m; i++) {
+        sq_ +=  ut[i]*ut[i];
+        sum_ += ut[i];
     }
 #pragma omp parallel for schedule(static)
-    for (ImpInt d = 0; d < k; ++d) {
+    for (ImpInt d = 0; d < k; d++) {
         for (ImpLong i = 0; i < m; i++) {
-            uTWt[d] += ut[i] * WT[d*m+i];
+            alpha[d] += ut[i] * WT[d*m+i];
         }
     }
 #pragma omp parallel for schedule(static)
-    for (ImpLong j = 0; j < n; ++j) {
-        for (ImpInt d = 0; d < k; ++d) {
-            wu[j] += uTWt[d] * H[j*k+d];
+    for (ImpLong j = 0; j < n; j++) {
+        for (ImpInt d = 0; d < k; d++) {
+            gamma[j] += alpha[d] * H[j*k+d];
         }
     }
-    w_sum = sum;
-    w2_sum = sq;
+    sum = sum_;
+    sq = sq_;
 }
-
+/*
 void ImpProblem::cache_h(ImpDouble *vt) {
     ImpLong m = data->m, n = data->n;
     ImpInt k = param->k;
@@ -626,21 +635,21 @@ void ImpProblem::cache_h(ImpDouble *vt) {
         sum += vt[j];
     }
 #pragma omp parallel for schedule(static)
-    for (ImpInt d = 0; d < k; ++d) {
-        for (ImpLong j = 0; j < n; ++j) {
+    for (ImpInt d = 0; d < k; d++) {
+        for (ImpLong j = 0; j < n; j++) {
             vTHt[d] += vt[j]*HT[d*n+j];
         }
     }
 #pragma omp parallel for schedule(static)
-    for (ImpLong i = 0; i < m; ++i) {
-        for (ImpInt d = 0; d < k; ++d) {
+    for (ImpLong i = 0; i < m; i++) {
+        for (ImpInt d = 0; d < k; d++) {
             hv[i] += vTHt[d]*W[i*k+d];
         }
     }
 
     h_sum = sum;
     h2_sum = sq;
-}
+}*/
 
 void ImpProblem::solve() {
     cout<<"Using "<<param->nr_threads<<" threads"<<endl;
