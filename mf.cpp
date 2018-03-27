@@ -99,15 +99,16 @@ void ImpProblem::load() {
 void ImpData::read() {
     string line;
     ifstream fs(file_name);
-    //TODO read l m n;
     while (getline(fs, line)) {
         istringstream iss(line);
         l++;
         ImpLong p_idx, q_idx;
         iss >> p_idx;
         iss >> q_idx;
+        p_idx--;
+        q_idx--;
         m = max(p_idx+1, m);
-        m = max(q_idx+1, n);
+        n = max(q_idx+1, n);
     }
     fs.close();
     fs.clear();
@@ -118,7 +119,8 @@ void ImpData::read() {
     RT.col_idx.resize(l);
     R.val.resize(l);
     RT.val.resize(l);
-    vector<ImpLong> perm(l);
+    vector<ImpLong> perm;
+    perm.resize(l);
     ImpLong idx = 0;
     while (getline(fs, line)) {
         istringstream iss(line);
@@ -126,6 +128,8 @@ void ImpData::read() {
         ImpLong p_idx, q_idx;
         iss >> p_idx;
         iss >> q_idx;
+        p_idx--;
+        q_idx--;
 
         ImpFloat val;
         iss >> val;
@@ -136,10 +140,12 @@ void ImpData::read() {
         RT.col_idx[idx] = q_idx;
         RT.val[idx] = val;
         perm[idx] = idx;
+        idx++;
     }
     sort(perm.begin(), perm.end(),Compare(R.col_idx.data(), RT.col_idx.data()));
+    
     for(idx = 0; idx < l; idx++ ) {
-       R.col_idx[idx] = R.col_idx[perm[idx]];
+       R.col_idx[idx] = RT.col_idx[perm[idx]];
        R.val[idx] = RT.val[perm[idx]];
     }
     for(ImpLong i = 1; i < m+1; i++) {
@@ -151,6 +157,7 @@ void ImpData::read() {
     for(ImpLong i = 0; i < m; i++) {
         for(ImpLong j = R.row_ptr[i]; j < R.row_ptr[i+1]; j++) {
             ImpLong c = R.col_idx[j];
+            RT.col_idx[RT.row_ptr[c]] = i;
             RT.val[RT.row_ptr[c]] = R.val[j];
             RT.row_ptr[c]++;
         }
@@ -192,6 +199,7 @@ void ImpProblem::initialize() {
     {
         for (ImpLong j = 0; j < m; j++) {
             WT[d*m+j] = distribution(engine); 
+            //WT[d*m+j] = 1/sqrt(k); 
             W[j*k+d] = WT[d*m+j];
         }
         for (ImpLong j = 0; j < n; j++) {
@@ -200,6 +208,7 @@ void ImpProblem::initialize() {
                 H[j*k+d] = HT[d*n+j];
             } else {
                 HT[d*n+j] = distribution(engine);
+                //HT[d*n+j] = 0;
                 H[j*k+d] = HT[d*n+j];
             }
         }
@@ -252,6 +261,9 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     }
     h += w*sq;
     g += w*(a*sum-gamma[i]+u_val*sq);
+    
+    //if(i<10)
+    //    printf("U : %f, D : %f, H : %f\n", g, h, g/h);
 
     ImpDouble new_u_val = g/h;
     ut[i*k] = new_u_val;
@@ -398,7 +410,7 @@ void ImpProblem::predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z) {
 }
 
 bool ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
-    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; i++) {
+    for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpLong j = R.col_idx[idx];
         if (j == argmax)
             return true;
@@ -420,9 +432,9 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
                 continue;
             }
             if (is_hit(test_data->R, i, argmax))
-                dcg[state] += 1/log2(valid_count+2);
+                dcg[state] += 1.0/log2(valid_count+2);
             if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
-                idcg[state] += 1/log2(valid_count+2);
+                idcg[state] += 1.0/log2(valid_count+2);
             valid_count++;
             Z[argmax] = MIN_Z;
         }
@@ -575,12 +587,14 @@ void ImpProblem::update_coordinates() {
          update_R(u, v, true);
          for (ImpInt s = 0; s < 5; s++) {
             cache(WT, H, gamma_w, u, m, n);
+            //cout<<"H"<<d<<endl;
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
                     update(data->RT, j, gamma_w, v, u, vt);
             }
             cache(HT, W, gamma_h, v, n, m);
+            //cout<<"W"<<d<<endl;
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
@@ -663,5 +677,6 @@ void ImpProblem::solve() {
         validate(topks);
         print_epoch_info();
     }
+    save();
 }
 
