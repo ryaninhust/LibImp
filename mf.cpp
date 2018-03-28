@@ -247,7 +247,7 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpDouble *ut) {
+void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
     ImpInt k = param->k;
     ImpDouble u_val = u[i];
@@ -266,7 +266,7 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     //    printf("U : %f, D : %f, H : %f\n", g, h, g/h);
 
     ImpDouble new_u_val = g/h;
-    ut[i*k] = new_u_val;
+    //ut[i*k] = new_u_val;
     u[i] = new_u_val;
 }
 
@@ -603,10 +603,12 @@ void ImpProblem::update_coordinates() {
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
-                    update(data->RT, j, gamma_w, v, u, vt);
+                    update(data->RT, j, gamma_w, v, u);
             }
-
             update_time += omp_get_wtime() - time;
+#pragma omp parallel for schedule(static)
+            for (ImpLong j = 0; j < n; j++)
+                vt[j*k] = v[j];
             time = omp_get_wtime();
             cache(HT, W, gamma_h, v, n, m);
             cache_time += omp_get_wtime() - time;
@@ -615,9 +617,12 @@ void ImpProblem::update_coordinates() {
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
-                    update(data->R, i, gamma_h, u, v, ut);
+                    update(data->R, i, gamma_h, u, v);
             }
             update_time += omp_get_wtime() - time;
+#pragma omp parallel for schedule(static)
+            for (ImpLong i = 0; i < m; i++)
+                ut[i*k] = u[i];
         }
         cu_time += omp_get_wtime() -time2;
         time = omp_get_wtime();

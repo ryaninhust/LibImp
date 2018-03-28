@@ -88,7 +88,7 @@ public:
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpFloat *ut);
+    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v);
     void save();
     void load();
 
