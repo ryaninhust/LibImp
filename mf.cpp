@@ -584,7 +584,7 @@ void ImpProblem::update_coordinates() {
     double cu_time = 0.0;
 
     double r_time = 0.0;
-    double time;
+    double time, time2;
     for (ImpInt d = 0; d < k; d++) {
          ImpDouble *u = &WT[d*m];
          ImpDouble *v = &HT[d*n];
@@ -593,33 +593,33 @@ void ImpProblem::update_coordinates() {
          time = omp_get_wtime();
          update_R(u, v, true);
          r_time += omp_get_wtime() - time;
-         time = omp_get_wtime();
+         time2 = omp_get_wtime();
          for (ImpInt s = 0; s < 1; s++) {
-            //time = omp_get_wtime();
+            time = omp_get_wtime();
             cache(WT, H, gamma_w, u, m, n);
-            //cache_time += omp_get_wtime() - time;
+            cache_time += omp_get_wtime() - time;
             //cout<<"H"<<d<<endl;
-            //time = omp_get_wtime();
+            time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
                     update(data->RT, j, gamma_w, v, u, vt);
             }
 
-            //update_time += omp_get_wtime() - time;
-            //time = omp_get_wtime();
+            update_time += omp_get_wtime() - time;
+            time = omp_get_wtime();
             cache(HT, W, gamma_h, v, n, m);
-            //cache_time += omp_get_wtime() - time;
+            cache_time += omp_get_wtime() - time;
             //cout<<"W"<<d<<endl;
-            //time = omp_get_wtime();
+            time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
                     update(data->R, i, gamma_h, u, v, ut);
             }
-            //update_time += omp_get_wtime() - time;
+            update_time += omp_get_wtime() - time;
         }
-        cu_time += omp_get_wtime() -time;
+        cu_time += omp_get_wtime() -time2;
         time = omp_get_wtime();
         update_R(u, v, false);
         r_time += omp_get_wtime() - time;
