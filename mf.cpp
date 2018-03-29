@@ -200,7 +200,6 @@ void ImpProblem::initialize() {
 
     default_random_engine engine(0);
     uniform_real_distribution<ImpFloat> distribution(0, 1.0/sqrt(k));
-#pragma omp parallel for schedule(static)
     for (ImpInt d = 0; d < k; d++)
     {
         for (ImpLong j = 0; j < m; j++) {
