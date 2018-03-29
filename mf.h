@@ -16,108 +16,99 @@
 using namespace std;
 
 
-typedef double FtrlFloat;
-typedef double FtrlDouble;
-typedef long long int FtrlInt;
-typedef long long int FtrlLong;
-
-
-class Node {
-public:
-    FtrlLong p_idx;
-    FtrlLong q_idx;
-    FtrlDouble  val;
-    Node(){};
-    Node(FtrlLong p_idx, FtrlLong q_idx, FtrlDouble val): p_idx(p_idx), q_idx(q_idx), val(val){};
-};
+typedef double ImpFloat;
+typedef double ImpDouble;
+typedef long long int ImpInt;
+typedef long long int ImpLong;
 
 class Parameter {
 
 public:
-    FtrlFloat lambda, w, a;
-    FtrlInt nr_pass, k, nr_threads;
+    ImpFloat lambda, w, a;
+    ImpInt nr_pass, k, nr_threads;
     string model_path, predict_path;
     Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1) {};
 };
 
-
-class FtrlData {
-public:
-    string file_name;
-    FtrlLong l, m, n;
-    vector<Node> R;
-    vector<Node> RT;
-    vector<vector<Node*>> P;
-    vector<vector<Node*>> Q;
-    vector<vector<Node*>> PT;
-    vector<vector<Node*>> QT;
-
-    FtrlData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
-    void transpose();
-    void read();
-    void print_data_info();
+struct smat {
+    vector<ImpLong> row_ptr;
+    vector<ImpLong> col_idx;
+    vector<ImpLong> val;
 };
 
-class FtrlProblem {
+class ImpData {
 public:
-    shared_ptr<FtrlData> data;
-    shared_ptr<FtrlData> test_data;
-    shared_ptr<FtrlData> test_data_2;
+    string file_name;
+    ImpLong l, m, n;
+    smat R;
+    smat RT;
+
+    ImpData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
+    void read();
+    void print_data_info();
+    class Compare {
+        public:
+            const ImpLong *row_idx;
+            const ImpLong *col_idx;
+            Compare(const ImpLong *row_idx_, const ImpLong *col_idx_) {
+                row_idx = row_idx_;
+                col_idx = col_idx_;
+            }
+            bool operator()(size_t x, size_t y) const {
+                return  (row_idx[x] < row_idx[y]) || ((row_idx[x] == row_idx[y]) && (col_idx[x]<= col_idx[y]));
+            }
+    };
+};
+
+class ImpProblem {
+public:
+    shared_ptr<ImpData> data;
+    shared_ptr<ImpData> test_data;
     shared_ptr<Parameter> param;
-    bool test_with_two_data;
-    FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<Parameter> &param)
-        :data(data), param(param) {test_with_two_data=false;};
-    FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data, shared_ptr<Parameter> &param)
-        :data(data), test_data(test_data), param(param) {test_with_two_data=false;};
-    FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data,shared_ptr<FtrlData> &test_data_2, shared_ptr<Parameter> &param)
-        :data(data), test_data(test_data), test_data_2(test_data_2), param(param) {test_with_two_data=true;};
+    ImpProblem(shared_ptr<ImpData> &data, shared_ptr<Parameter> &param)
+        :data(data), param(param) {};
+    ImpProblem(shared_ptr<ImpData> &data, shared_ptr<ImpData> &test_data, shared_ptr<Parameter> &param)
+        :data(data), test_data(test_data), param(param) {};
 
-    vector<FtrlFloat> W, H;
-    vector<FtrlFloat> WT, HT;
+    vector<ImpFloat> W, H;
+    vector<ImpFloat> WT, HT;
 
-    FtrlInt t;
-    FtrlDouble obj, reg, tr_loss;
-    vector<FtrlDouble> va_loss;
+    ImpInt t;
+    ImpDouble obj, reg, tr_loss;
+    vector<ImpDouble> va_loss;
 
-    FtrlFloat start_time;
-    FtrlFloat U_time, C_time, W_time, H_time, I_time, R_time;
+    ImpFloat start_time;
+    ImpFloat U_time, C_time, W_time, H_time, I_time, R_time;
 
-    FtrlFloat w2_sum, h2_sum;
-    FtrlFloat w_sum, h_sum;
-    vector<FtrlFloat> wu, hv;
+    ImpFloat sum, sq;
+    vector<ImpFloat> gamma_w, gamma_h;
 
 
-    FtrlDouble cal_loss(FtrlLong &l, vector<Node> &R);
-    FtrlDouble cal_reg();
-    FtrlDouble cal_tr_loss(FtrlLong &l, vector<Node> &R);
+    ImpDouble cal_loss(ImpLong &l, smat &R);
+    ImpDouble cal_reg();
+    ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update_w(FtrlLong i, FtrlDouble *wt, FtrlDouble *ht);
-    void update_h(FtrlLong j, FtrlDouble *wt, FtrlDouble *ht);
+    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v);
     void save();
     void load();
 
     void initialize();
-    void init_va_loss(FtrlInt size);
+    void init_va_loss(ImpInt size);
     void solve();
-    void update_R();
-    void update_R(FtrlDouble *wt, FtrlDouble *ht, bool add);
+    void update_R(ImpFloat *wt, ImpFloat *ht, bool add);
 
-    void validate(const vector<FtrlInt> &topks);
-    void validate_test(const vector<FtrlInt> &topks);
-    void validate_ndcg(const vector<FtrlInt> &topks);
-    void predict_item(const FtrlInt &topk);
-    void predict_candidates(const FtrlFloat* w, vector<FtrlFloat> &Z);
-    FtrlLong precision_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<FtrlLong> &hit_counts);
-    FtrlDouble ndcg_k(vector<FtrlFloat> &Z, const vector<Node*> &p, const vector<Node*> &tp, const vector<FtrlInt> &topks, vector<double> &ndcgs);
+    void validate(const vector<ImpInt> &topks);
+    void validate_ndcg(const vector<ImpInt> &topks);
+    void predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z);
+    ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
+    ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
-    void cache_w(FtrlDouble *wt, FtrlDouble *wu_th);
-    void cache_h(FtrlDouble *ht, FtrlDouble *hv_th);
+    void cache(vector<ImpFloat> &WT,vector<ImpFloat> &H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
 
     void update_coordinates();
     void print_epoch_info();
-    void print_epoch_info_test();
-    void print_header_info(vector<FtrlInt> &topks);
+    void print_header_info(vector<ImpInt> &topks);
 
-    bool is_hit(const vector<Node*> p, FtrlLong argmax);
+    bool is_hit(const smat &R, ImpLong i, ImpLong argmax);
 };
 

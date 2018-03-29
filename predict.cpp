@@ -10,7 +10,7 @@
 struct Option
 {
     shared_ptr<Parameter> param;
-    FtrlInt verbose;
+    ImpInt verbose;
     string test_path;
     bool test;
 };
@@ -79,17 +79,15 @@ int main(int argc, char **argv)
         Option option = parse_option(argc, argv);
         
 
-        shared_ptr<FtrlData> data = make_shared<FtrlData>("FakeData");
-        shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
+        shared_ptr<ImpData> data = make_shared<ImpData>("FakeData");
+        shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
         if (option.test)
         {
             test_data->read();
-            test_data->transpose(); 
         }
-        FtrlProblem prob(data, option.param);
+        ImpProblem prob(data, option.param);
         prob.initialize();
         prob.load();
-        prob.predict_item(10);
     }
     catch (invalid_argument &e)
     {
