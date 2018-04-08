@@ -33,7 +33,7 @@ public:
 struct smat {
     vector<ImpLong> row_ptr;
     vector<ImpLong> col_idx;
-    vector<ImpLong> val;
+    vector<ImpDouble> val;
 };
 
 class ImpData {
