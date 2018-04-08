@@ -1,13 +1,39 @@
 #include "mf.h"
 #include <cstring>
 #define MIN_Z -10000;
+#include <immintrin.h>
 
-double inner(const double *a, const double *b, const int k)
+double inner(const ImpFloat *p, const ImpFloat *q, const int k)
 {
+    __m128d XMM = _mm_setzero_pd();
+    for(ImpInt d = 0; d < k; d += 4)
+        XMM = _mm_add_pd(XMM, _mm_mul_pd(
+                  _mm_load_pd(p+d), _mm_load_pd(q+d)));
+    XMM = _mm_hadd_pd(XMM, XMM);
+    XMM = _mm_hadd_pd(XMM, XMM);
+    ImpFloat product;
+    _mm_store_sd(&product, XMM);
+    return product;
+
+    /*
     double r = 0.0;
     for (int i = 0; i < k; i++)
-        r += a[i]*b[i];
+        r += p[i]*q[i];
     return r;
+
+    __m256d XMM = _mm256_setzero_pd();
+    for(ImpInt d = 0; d < k; d += 8) {
+        cout << d << endl;
+        XMM = _mm256_add_pd(XMM, _mm256_mul_pd(
+                  _mm256_load_pd(p+d), _mm256_load_pd(q+d)));
+    }
+    XMM = _mm256_add_pd(XMM, _mm256_permute2f128_pd(XMM, XMM, 1));
+    XMM = _mm256_hadd_pd(XMM, XMM);
+    XMM = _mm256_hadd_pd(XMM, XMM);
+    ImpDouble product;
+    _mm_store_sd(&product, _mm256_castpd256_pd128(XMM));
+    return product;
+    */
 }
 
 void ImpProblem::save() {
@@ -111,11 +137,11 @@ void ImpData::read() {
         ImpLong p_idx, q_idx;
         iss >> p_idx;
         iss >> q_idx;
-        //p_idx--;
-        //q_idx--;
+
         m = max(p_idx+1, m);
         n = max(q_idx+1, n);
     }
+    cout << m << "  " << n << endl;
     fs.close();
     fs.clear();
     fs.open(file_name);
@@ -134,8 +160,6 @@ void ImpData::read() {
         ImpLong p_idx, q_idx;
         iss >> p_idx;
         iss >> q_idx;
-        //p_idx--;
-        //q_idx--;
 
         ImpFloat val;
         iss >> val;
@@ -571,7 +595,7 @@ void ImpProblem::update_coordinates() {
          update_R(u, v, true);
          r_time += omp_get_wtime() - time;
          time2 = omp_get_wtime();
-         for (ImpInt s = 0; s < 5; s++) {
+         for (ImpInt s = 0; s < 1; s++) {
             time = omp_get_wtime();
             cache(WT, H, gamma_w, u, m, n);
             cache_time += omp_get_wtime() - time;
@@ -606,20 +630,27 @@ void ImpProblem::update_coordinates() {
         update_R(u, v, false);
         r_time += omp_get_wtime() - time;
     }
-    /*cout<< "cache time : "<< cache_time << endl;
+    cout<< "cache time : "<< cache_time << endl;
     cout<< "update time: "<< update_time<< endl;
     cout<< "ca+up time : "<< cu_time<< endl;
-    cout<< "r time     : "<< r_time <<endl;*/
+    cout<< "r time     : "<< r_time <<endl;
 }
 
 void ImpProblem::cache(vector<ImpFloat> &WT_, vector<ImpFloat> &H_, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n) {
     ImpInt k = param->k;
     ImpFloat sq_ = 0, sum_ = 0;
+
     vector<ImpDouble> alpha(k,0);
+
+    ImpDouble* AP = alpha.data();
+    ImpDouble* WTP = WT_.data();
+    ImpDouble* HP = H_.data();
+
 #pragma omp parallel for schedule(static)
     for (ImpLong j = 0; j < n; j++) {
         gamma[j] = 0;
     }
+
     //sum_ = cblas_ddot(n, ut, 1, &y, 0);
     //sq_ = cblas_dnrm2(n, ut, 1);
     //sq_ = sq_*sq_;
@@ -633,16 +664,12 @@ void ImpProblem::cache(vector<ImpFloat> &WT_, vector<ImpFloat> &H_, vector<ImpFl
 
 #pragma omp parallel for schedule(static)
     for (ImpInt d = 0; d < k; d++) {
-        for (ImpLong i = 0; i < m; i++) {
-            alpha[d] += ut[i] * WT_[d*m+i];
-        }
+        alpha[d] = inner(ut, WTP+d*m, m);
     }
     //cblas_dgemv(CblasRowMajor, CblasNoTrans, k, n, 1, H_.data(), n, alpha.data(), 1, 0, gamma.data(), 1);
 #pragma omp parallel for schedule(static)
     for (ImpLong j = 0; j < n; j++) {
-        for (ImpInt d = 0; d < k; d++) {
-            gamma[j] += alpha[d] * H_[j*k+d];
-        }
+        gamma[j] = inner(AP,HP+j*k, k);
     }
     sum = sum_;
     sq = sq_;
