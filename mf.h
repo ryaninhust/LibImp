@@ -40,6 +40,7 @@ class ImpData {
 public:
     string file_name;
     ImpLong l, m, n;
+    ImpLong m_real, n_real;
     smat R;
     smat RT;
 
@@ -70,8 +71,8 @@ public:
     ImpProblem(shared_ptr<ImpData> &data, shared_ptr<ImpData> &test_data, shared_ptr<Parameter> &param)
         :data(data), test_data(test_data), param(param) {};
 
-    vector<ImpFloat> W, H;
-    vector<ImpFloat> WT, HT;
+    ImpFloat *W, *H;
+    ImpFloat *WT, *HT;
 
     ImpInt t;
     ImpDouble obj, reg, tr_loss;
@@ -88,7 +89,7 @@ public:
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v);
+    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpDouble *u, ImpDouble *v);
     void save();
     void load();
 
@@ -103,7 +104,7 @@ public:
     ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
     ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
-    void cache(vector<ImpFloat> &WT,vector<ImpFloat> &H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
+    void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
 
     void update_coordinates();
     void print_epoch_info();
