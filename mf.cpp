@@ -57,7 +57,7 @@ void ImpProblem::save() {
             ptr++;
         param->model_path = string(ptr) + ".model";
     }
-    ImpLong m = data->m, n = data->n;
+    ImpLong m = data->m_real, n = data->n_real;
     ImpInt k = param->k;
     ofstream f(param->model_path);
     if(!f.is_open())
@@ -123,8 +123,8 @@ void ImpProblem::load() {
         }
     };
 
-    read(WT, data->m);
-    read(HT, data->n);
+    read(WT, data->m_real);
+    read(HT, data->n_real);
     for(int i = 0; i < data->m; i++)
         for(int d = 0; d < param->k; d++)
             W[i*param->k+d] = WT[d*data->m+i];
@@ -149,6 +149,8 @@ void ImpData::read() {
         m = max(p_idx+1, m);
         n = max(q_idx+1, n);
     }
+    m_real = m;
+    n_real = n;
     ImpInt mul = ALIGNByte/8;
     if ( m%mul != 0) m = ((m/mul)+1)*mul;
     if ( n%mul != 0) n = ((n/mul)+1)*mul;
@@ -226,9 +228,6 @@ void ImpProblem::initialize() {
     WT = impMalloc(m*k);
     H = impMalloc(n*k);
     HT = impMalloc(n*k);
-
-    //WT.resize(k*m);
-    //HT.resize(k*n);
 
     gamma_w.resize(n);
     gamma_h.resize(m);
@@ -661,10 +660,6 @@ void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, I
     void *ptr = NULL;
     if (posix_memalign(&ptr, ALIGNByte, sizeof(ImpDouble)*k)) cout <<"Bad alloc at cache"<<endl;
     ImpDouble* alpha = (ImpDouble*)ptr;
-
-    //ImpDouble* AP = alpha.data();
-    //ImpDouble* WTP = WT_.data();
-    //ImpDouble* HP = H_.data();
 
 #pragma omp parallel for schedule(static)
     for (ImpLong j = 0; j < n; j++) {

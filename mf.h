@@ -40,6 +40,7 @@ class ImpData {
 public:
     string file_name;
     ImpLong l, m, n;
+    ImpLong m_real, n_real;
     smat R;
     smat RT;
 
