@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
         Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
-        shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path);
+        shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path, option.param->a, 1);
         shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
 
         data->read();

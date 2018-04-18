@@ -39,12 +39,15 @@ struct smat {
 class ImpData {
 public:
     string file_name;
-    ImpLong l, m, n;
+    ImpLong l, m, n, a;
     ImpLong m_real, n_real;
+    ImpInt SAMPLE_SIZE;
     smat R;
     smat RT;
 
-    ImpData(string file_name): file_name(file_name), l(0), m(0), n(0) {};
+    ImpData(string file_name): file_name(file_name), l(0), m(0), n(0), a(0), SAMPLE_SIZE(0) {};
+    ImpData(string file_name, ImpFloat a_): file_name(file_name), l(0), m(0),n(0), SAMPLE_SIZE(0) { a = a_;};
+    ImpData(string file_name, ImpFloat a_, ImpInt sample_size): file_name(file_name), l(0), m(0),n(0) { a = a_; SAMPLE_SIZE = sample_size;};
     void read();
     void print_data_info();
     class Compare {
@@ -71,7 +74,6 @@ public:
     ImpProblem(shared_ptr<ImpData> &data, shared_ptr<ImpData> &test_data, shared_ptr<Parameter> &param)
         :data(data), test_data(test_data), param(param) {};
 
-    ImpFloat *W, *H;
     ImpFloat *WT, *HT;
 
     ImpInt t;
@@ -82,14 +84,12 @@ public:
     ImpFloat U_time, C_time, W_time, H_time, I_time, R_time;
 
     ImpFloat sum, sq;
-    vector<ImpFloat> gamma_w, gamma_h;
-
 
     ImpDouble cal_loss(ImpLong &l, smat &R);
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpDouble *u, ImpDouble *v);
+    void update(const smat &R, ImpLong i, ImpDouble *u, ImpDouble *v);
     void save();
     void load();
 
@@ -103,8 +103,7 @@ public:
     void predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z);
     ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
     ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
-    
-    void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
+    //void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
 
     void update_coordinates();
     void print_epoch_info();
