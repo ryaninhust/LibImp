@@ -351,6 +351,7 @@ void ImpProblem::validate(const vector<ImpInt> &topks) {
     const ImpFloat* Wp = W;
     vector<ImpLong> hit_counts(nr_th*topks.size(),0);
     ImpLong valid_samples = 0;
+    m = min(m, test_data->m);
 #pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (ImpLong i = 0; i < m; i++) {
         vector<ImpFloat> Z(n, 0);
