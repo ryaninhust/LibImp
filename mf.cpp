@@ -345,7 +345,8 @@ ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, smat &R) {
 }
 
 void ImpProblem::validate(const vector<ImpInt> &topks) {
-    ImpLong n = data->n, m = data->m;
+    ImpLong n = data->n;
+    ImpLong m = min(data->m,test_data->m);
     ImpInt nr_th = param->nr_threads;
     const smat &testR = test_data->R;
     const ImpFloat* Wp = WT;
@@ -378,7 +379,8 @@ void ImpProblem::validate(const vector<ImpInt> &topks) {
 }
 
 void ImpProblem::validate_ndcg(const vector<ImpInt> &topks) {
-    ImpLong n = data->n, m = data->m;
+    ImpLong n = data->n;
+    ImpLong m = min(data->m,test_data->m);
     ImpInt nr_th = param->nr_threads;
     const smat &testR = test_data->R;
     const ImpFloat* Wp = WT;
@@ -473,6 +475,10 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(data->R, i, argmax)) {
+                Z[argmax] = MIN_Z;
+                continue;
+             }
             if (is_hit(test_data->R, i, argmax)) {
                 hit_count[state]++;
             }
