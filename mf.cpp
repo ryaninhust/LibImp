@@ -609,7 +609,7 @@ void ImpProblem::update_coordinates() {
          update_R(u, v, true);
          r_time += omp_get_wtime() - time;
          time = omp_get_wtime();
-         for (ImpInt s = 0; s < 1; s++) {
+         for (ImpInt s = 0; s < 5; s++) {
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
