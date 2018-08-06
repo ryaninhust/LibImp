@@ -345,13 +345,13 @@ ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, smat &R) {
 }
 
 void ImpProblem::validate(const vector<ImpInt> &topks) {
-    ImpLong n = data->n, m = data->m;
+    ImpLong n = data->n;
+    ImpLong m = min(data->m, test_data->m);
     ImpInt nr_th = param->nr_threads, k = param->k;
     const smat &testR = test_data->R;
     const ImpFloat* Wp = W;
     vector<ImpLong> hit_counts(nr_th*topks.size(),0);
     ImpLong valid_samples = 0;
-    m = min(m, test_data->m);
 #pragma omp parallel for schedule(static) reduction(+: valid_samples)
     for (ImpLong i = 0; i < m; i++) {
         vector<ImpFloat> Z(n, 0);
@@ -379,7 +379,8 @@ void ImpProblem::validate(const vector<ImpInt> &topks) {
 }
 
 void ImpProblem::validate_ndcg(const vector<ImpInt> &topks) {
-    ImpLong n = data->n, m = data->m;
+    ImpLong n = data->n;
+    ImpLong m = min(data->m, test_data->m);
     ImpInt nr_th = param->nr_threads, k = param->k;
     const smat &testR = test_data->R;
     const ImpFloat* Wp = W;
