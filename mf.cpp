@@ -208,6 +208,46 @@ void ImpData::read() {
     RT.row_ptr[0] = 0;
 }
 
+void ImpProblem::set_weight(string scheme) {
+    ImpLong n = data->n, m = data-> m;
+    p.resize(m);
+    q.resize(n);
+    if (scheme ==  "prob") {
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
+            p[i] = 1/(p[i]+1);
+            if (p[i] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
+            q[j] = 1/(q[j]+1);
+            if (q[j] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+    } else if (scheme == "log") {
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
+            p[i] = 1/log2(p[i]+2);
+            if (p[i] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
+            q[j] = 1/log2(q[j]+2);
+            if (q[j] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+    } else {
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = param->w;
+        }
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = 1;
+        }
+      
+    }
+}
 
 void ImpData::print_data_info() {
     cout << "Data: " << file_name << "\t";
@@ -284,7 +324,7 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v) {
+void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpDouble w_p, vector<ImpDouble> w_q) {
     ImpFloat lambda = param->lambda, a = param->a, w = param->w;
     //ImpInt k = param->k;
     ImpDouble u_val = u[i];
@@ -293,11 +333,11 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
         ImpDouble r = R.val[idx];
         ImpLong j = R.col_idx[idx];
         ImpDouble v_val = v[j];
-        g += ((1-w)*r+w*(1-a))*v_val;
-        h += (1-w)*v_val*v_val;
+        g += ((1-w_p*w_q[j])*r+w_p*w_q[j]*(1-a))*v_val;
+        h += (1-w_p*w_q[j])*v_val*v_val;
     }
-    h += w*sq;
-    g += w*(a*sum-gamma[i]+u_val*sq);
+    h += w_p*sq;
+    g += w_p*(a*sum-gamma[i]+u_val*sq);
 
     ImpDouble new_u_val = g/h;
     //ut[i*k] = new_u_val;
@@ -609,13 +649,13 @@ void ImpProblem::update_coordinates() {
          time2 = omp_get_wtime();
          for (ImpInt s = 0; s < 5; s++) {
             time = omp_get_wtime();
-            cache(WT, H, gamma_w, u, m, n);
+            cache(WT, H, gamma_w, u, m, n, p);
             cache_time += omp_get_wtime() - time;
             time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
-                    update(data->RT, j, gamma_w, v, u);
+                    update(data->RT, j, gamma_w, v, u, q[j] ,p);
             }
             update_time += omp_get_wtime() - time;
             //cblas_dcopy(n, v, 1, vt, k);
@@ -625,13 +665,13 @@ void ImpProblem::update_coordinates() {
                 vt[j*k] = v[j];
             sync_time += omp_get_wtime() - time;
             time = omp_get_wtime();
-            cache(HT, W, gamma_h, v, n, m);
+            cache(HT, W, gamma_h, v, n, m, q);
             cache_time += omp_get_wtime() - time;
             time = omp_get_wtime();
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
-                    update(data->R, i, gamma_h, u, v);
+                    update(data->R, i, gamma_h, u, v,p[i],q);
             }
             update_time += omp_get_wtime() - time;
             //cblas_dcopy(m, u, 1, ut, k);
@@ -655,32 +695,40 @@ void ImpProblem::update_coordinates() {
     cout<< "r time     : "<< r_time <<endl;*/
 }
 
-void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n) {
+void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n, vector<ImpDouble> w_q) {
     ImpInt k = param->k;
     ImpFloat sq_ = 0, sum_ = 0;
     void *ptr = NULL;
     if (posix_memalign(&ptr, ALIGNByte, sizeof(ImpDouble)*k)) cout <<"Bad alloc at cache"<<endl;
     ImpDouble* alpha = (ImpDouble*)ptr;
+    void *ptr2 = NULL;
+    if (posix_memalign(&ptr2, ALIGNByte, sizeof(ImpDouble)*m)) cout <<"Bad alloc at cache"<<endl;
+    ImpDouble* qut = (ImpDouble*)ptr2;
 
 #pragma omp parallel for schedule(static)
     for (ImpLong j = 0; j < n; j++) {
         gamma[j] = 0;
     }
+    
+#pragma omp parallel for schedule(static)
+    for (ImpLong i = 0; i < m; i++) {
+        qut[i] = 0;
+    }
 
     //sum_ = cblas_ddot(n, ut, 1, &y, 0);
     //sq_ = cblas_dnrm2(n, ut, 1);
     //sq_ = sq_*sq_;
-
 #pragma omp parallel for schedule(static) reduction(+:sq_,sum_)
     for (ImpInt i = 0; i < m; i++) {
-        sq_ +=  ut[i]*ut[i];
-        sum_ += ut[i];
+        sq_ +=  ut[i]*ut[i]*w_q[i];
+        sum_ += ut[i]*w_q[i];
+        qut[i] = ut[i]*w_q[i];
     }
     //cblas_dgemv(CblasRowMajor, CblasNoTrans, k, m, 1, WT_.data(), k, ut, 1, 0, alpha.data(), 1);
     double time = omp_get_wtime();
 #pragma omp parallel for schedule(static)
     for (ImpInt d = 0; d < k; d++) {
-        alpha[d] = inner(WT_+d*m, ut, m);
+        alpha[d] = inner(WT_+d*m, qut, m);
     }
     mv1_time += omp_get_wtime() -time;
     time = omp_get_wtime();
@@ -693,6 +741,7 @@ void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, I
     sum = sum_;
     sq = sq_;
     free(ptr);
+    free(ptr2);
 }
 
 void ImpProblem::solve() {
@@ -701,11 +750,14 @@ void ImpProblem::solve() {
     vector<ImpInt> topks(6,0);
     topks[0] = 5; topks[1] = 10; topks[2] = 20;
     topks[3] = 40; topks[4] = 80; topks[5] = 100;
+    topks[0] = 1; topks[1] = 2; topks[2] = 3;
+    topks[3] = 4; topks[4] = 5; topks[5] = 10;
     print_header_info(topks);
+    set_weight("log");
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate(topks);
+        validate_ndcg(topks);
         print_epoch_info();
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
