@@ -206,7 +206,7 @@ void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w
         }
     } else if (scheme ==  2) {
         ImpInt p_sum = 0;
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) reduction(+:p_sum)
         for(ImpInt i = 0; i < m; i++ ) {
             w_p[i] = R.row_ptr[i+1] - R.row_ptr[i];
             w_p[i] = 1/(w_p[i]+1);
@@ -220,7 +220,7 @@ void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w
         }
     } else if (scheme == 3) {
         ImpInt p_sum = 0;
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) reduction(+:p_sum)
         for(ImpInt i = 0; i < m; i++ ) {
             w_p[i] = R.row_ptr[i+1] - R.row_ptr[i];
             w_p[i] = 1/log2(w_p[i]+2);
