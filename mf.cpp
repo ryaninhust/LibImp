@@ -19,21 +19,6 @@ ImpDouble* impMalloc(ImpInt k)
 double inner(const ImpFloat *p, const ImpFloat *q, const int k)
 {
 
-    /*__m128d XMM = _mm_setzero_pd();
-
-    for(ImpInt d = 0; d < k; d += 2)
-        XMM = _mm_add_pd(XMM, _mm_mul_pd(
-                  _mm_load_pd(p+d), _mm_load_pd(q+d)));
-    XMM = _mm_hadd_pd(XMM, XMM);
-    ImpFloat product;
-    _mm_store_sd(&product, XMM);
-    return product;
-
-    double r = 0.0;
-    for (int i = 0; i < k; i++)
-        r += p[i]*q[i];
-    return r;*/
-
     __m256d XMM = _mm256_setzero_pd();
     for(ImpInt d = 0; d < k; d += 4) {
         XMM = _mm256_add_pd(XMM, _mm256_mul_pd(
@@ -754,18 +739,20 @@ void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, I
 void ImpProblem::solve() {
     cout<<"Using "<<param->nr_threads<<" threads"<<endl;
     init_va_loss(6);
+
     vector<ImpInt> topks(6,0);
     topks[0] = 5; topks[1] = 10; topks[2] = 20;
     topks[3] = 40; topks[4] = 80; topks[5] = 100;
-    topks[0] = 1; topks[1] = 2; topks[2] = 3;
-    topks[3] = 4; topks[4] = 5; topks[5] = 10;
+
     print_header_info(topks);
+
     set_weight(data->R,data->m,p);
     set_weight(data->RT,data->n,q);
+
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate_ndcg(topks);
+        validate(topks);
         print_epoch_info();
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
