@@ -193,8 +193,7 @@ void ImpData::read() {
     RT.row_ptr[0] = 0;
 }
 
-void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w_p) {
-    ImpInt scheme = param->scheme;
+void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w_p, const ImpInt scheme) {
     w_p.resize(m);
     if (scheme == 1) { 
 #pragma omp parallel for schedule(static)
@@ -236,6 +235,10 @@ void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w
 #pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             w_p[i] = sqrt(param->w);
+        }
+    } else {
+        for(ImpInt i = 0; i < m; i++ ) {
+            w_p[i] =1;
         }
     }
 }
@@ -746,8 +749,8 @@ void ImpProblem::solve() {
 
     print_header_info(topks);
 
-    set_weight(data->R,data->m,p);
-    set_weight(data->RT,data->n,q);
+    set_weight(data->R, data->m, p, -1);
+    set_weight(data->RT ,data->n, q, param->scheme);
 
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
