@@ -52,6 +52,11 @@ string train_help()
     "-a <path>: set labels to the negatives (default 0)\n"
     "-c <threads>: set number of cores\n"
     "-k <rank>: set number of rank\n"
+    "-s <rank>: set scheme of p q (default 0)\n"
+    "   -- 0 constant w \n"
+    "   -- 1 w * probability\n"
+    "   -- 2 1/(p+1)\n"
+    "   -- 3 log(1/(p+2))\n"
     );
 }
 
@@ -134,6 +139,15 @@ Option parse_option(int argc, char **argv)
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-c should be followed by a number");
             option.param->nr_threads = atof(argv[i]);
+        }
+        else if(args[i].compare("-s") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("missing core numbers after -c");
+            i++;
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-c should be followed by a number");
+            option.param->scheme = atof(argv[i]);
         }
         else if(args[i].compare("-m") == 0)
         {

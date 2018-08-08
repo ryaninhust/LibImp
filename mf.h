@@ -74,6 +74,7 @@ public:
     ImpFloat *W, *H;
     ImpFloat *WT, *HT;
 
+    vector<ImpDouble> p, q;
     ImpInt t;
     ImpDouble obj, reg, tr_loss;
     vector<ImpDouble> va_loss;
@@ -89,12 +90,14 @@ public:
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpDouble *u, ImpDouble *v);
+    void update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpDouble *u, ImpDouble *v, ImpDouble w_p, vector<ImpDouble> w_q );
     void save();
     void load();
 
+
     void initialize();
     void init_va_loss(ImpInt size);
+    void set_weight(string scheme);
     void solve();
     void update_R(ImpFloat *wt, ImpFloat *ht, bool add);
 
@@ -104,7 +107,7 @@ public:
     ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
     ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
-    void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n);
+    void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n, vector<ImpDouble> w_q);
 
     void update_coordinates();
     void print_epoch_info();
