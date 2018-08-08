@@ -214,12 +214,14 @@ void ImpProblem::set_weight() {
     p.resize(m);
     q.resize(n);
     if (scheme == 1) { 
+#pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
             p[i] = param->w * p[i]/data->R.row_ptr[m];
             if (p[i] < 0)
               cout<<"Wrong with weight"<<endl;
         }
+#pragma omp parallel for schedule(static)
         for(ImpInt j = 0; j < n; j++ ) {
             q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
             q[j] = param->w * q[j]/data->RT.row_ptr[n];
@@ -227,35 +229,64 @@ void ImpProblem::set_weight() {
               cout<<"Wrong with weight"<<endl;
         }
     } else if (scheme ==  2) {
+        ImpInt p_sum = 0;
+        ImpInt q_sum = 0;
+#pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
             p[i] = 1/(p[i]+1);
+            p_sum += p[i];
+        }
+#pragma omp parallel for schedule(static)
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = param->w*p[i]/p_sum;
             if (p[i] < 0)
               cout<<"Wrong with weight"<<endl;
         }
+#pragma omp parallel for schedule(static)
         for(ImpInt j = 0; j < n; j++ ) {
             q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
             q[j] = 1/(q[j]+1);
+            q_sum += q[j];
+        }
+#pragma omp parallel for schedule(static)
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = param->w*q[j]/q_sum;
             if (q[j] < 0)
               cout<<"Wrong with weight"<<endl;
         }
     } else if (scheme == 3) {
+        ImpInt p_sum = 0;
+        ImpInt q_sum = 0;
+#pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
             p[i] = 1/log2(p[i]+2);
+            p_sum += p[i];
+        }
+#pragma omp parallel for schedule(static)
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = param->w*p[i]/p_sum;
             if (p[i] < 0)
               cout<<"Wrong with weight"<<endl;
         }
+#pragma omp parallel for schedule(static)
         for(ImpInt j = 0; j < n; j++ ) {
             q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
             q[j] = 1/log2(q[j]+2);
+            q_sum += q[j];
+        }
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = param->w*q[j]/q_sum;
             if (q[j] < 0)
               cout<<"Wrong with weight"<<endl;
         }
     } else if (scheme == 0) {
+#pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = param->w;
         }
+#pragma omp parallel for schedule(static)
         for(ImpInt j = 0; j < n; j++ ) {
             q[j] = 1;
         }
@@ -338,7 +369,7 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpDouble w_p, vector<ImpDouble> w_q) {
+void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, const ImpDouble w_p, const vector<ImpDouble> &w_q) {
     ImpFloat lambda = param->lambda, a = param->a;
     //ImpFloat w = param->w;
     //ImpInt k = param->k;
@@ -710,7 +741,7 @@ void ImpProblem::update_coordinates() {
     cout<< "r time     : "<< r_time <<endl;*/
 }
 
-void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n, vector<ImpDouble> w_q) {
+void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, ImpFloat *ut, ImpLong m, ImpLong n, const vector<ImpDouble> &w_q) {
     ImpInt k = param->k;
     ImpFloat sq_ = 0, sum_ = 0;
     void *ptr = NULL;
