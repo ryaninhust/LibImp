@@ -143,6 +143,12 @@ void ImpData::read() {
 
     m_real = m;
     n_real = n;
+
+    ImpLong l_real = l;
+
+    
+    vector<ImpDouble> counter(n, 0);
+
     /*ImpInt mul = ALIGNByte/8;
     if ( m%mul != 0) m = ((m/mul)+1)*mul;
     if ( n%mul != 0) n = ((n/mul)+1)*mul;*/
@@ -159,11 +165,44 @@ void ImpData::read() {
     vector<ImpLong> perm;
     perm.resize(l);
     ImpLong idx = 0;
+    while (getline(fs, line)) {
+        istringstream iss(line);
+        
+        ImpLong p_idx, q_idx;
+        iss >> p_idx;
+        iss >> q_idx;
+
+        counter[q_idx]++;
+
+        ImpFloat val;
+        iss >> val;
+
+        R.row_ptr[p_idx+1]++;
+        RT.row_ptr[q_idx+1]++;
+        R.col_idx[idx]  = p_idx;
+        RT.col_idx[idx] = q_idx;
+        RT.val[idx] = val;
+        perm[idx] = idx;
+        idx++;
+    }
+
+    ImpDouble sum = 0;
+    for (ImpLong j = 0; j < n; j++) {
+        counter[j] = 1-counter[j]/l_real;
+        sum += counter[j]
+    }
+    cout << sum << endl;
+    exit(1);
+
+    discrete_distribution<ImpLong> q_dist(counter.begin(), counter.end());
+    default_random_engine engine(0);
+
     for( ImpInt repeat = 0; repeat < SAMPLE_SIZE; repeat++) {
         for(ImpInt i = 0; i < l/(SAMPLE_SIZE+1); i++ ) {
             ImpLong p_idx, q_idx;
             p_idx = rand()%m;
-            q_idx = rand()%n;
+            //q_idx = rand()%n;
+            q_idx = q_dist(engine);
 
             ImpFloat val;
             val = a;
@@ -176,24 +215,6 @@ void ImpData::read() {
             perm[idx] = idx;
             idx++;
         }
-    }
-    while (getline(fs, line)) {
-        istringstream iss(line);
-        
-        ImpLong p_idx, q_idx;
-        iss >> p_idx;
-        iss >> q_idx;
-
-        ImpFloat val;
-        iss >> val;
-
-        R.row_ptr[p_idx+1]++;
-        RT.row_ptr[q_idx+1]++;
-        R.col_idx[idx]  = p_idx;
-        RT.col_idx[idx] = q_idx;
-        RT.val[idx] = val;
-        perm[idx] = idx;
-        idx++;
     }
     sort(perm.begin(), perm.end(),Compare(R.col_idx.data(), RT.col_idx.data()));
     
