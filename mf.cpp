@@ -234,9 +234,10 @@ void ImpProblem::set_weight(const smat &R, const ImpLong m, vector<ImpDouble> &w
     } else if (scheme == 0) {
 #pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
-            w_p[i] = sqrt(param->w);
+            w_p[i] = param->w;
         }
     } else {
+#pragma omp parallel for schedule(static)
         for(ImpInt i = 0; i < m; i++ ) {
             w_p[i] =1;
         }
