@@ -208,11 +208,25 @@ void ImpData::read() {
     RT.row_ptr[0] = 0;
 }
 
-void ImpProblem::set_weight(string scheme) {
+void ImpProblem::set_weight() {
+    ImpInt scheme = param->scheme;
     ImpLong n = data->n, m = data-> m;
     p.resize(m);
     q.resize(n);
-    if (scheme ==  "prob") {
+    if (scheme == 1) { 
+        for(ImpInt i = 0; i < m; i++ ) {
+            p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
+            p[i] = param->w * p[i]/data->R.row_ptr[m];
+            if (p[i] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+        for(ImpInt j = 0; j < n; j++ ) {
+            q[j] = data->RT.row_ptr[j+1] - data->RT.row_ptr[j];
+            q[j] = param->w * q[j]/data->RT.row_ptr[n];
+            if (q[j] < 0)
+              cout<<"Wrong with weight"<<endl;
+        }
+    } else if (scheme ==  2) {
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
             p[i] = 1/(p[i]+1);
@@ -225,7 +239,7 @@ void ImpProblem::set_weight(string scheme) {
             if (q[j] < 0)
               cout<<"Wrong with weight"<<endl;
         }
-    } else if (scheme == "log") {
+    } else if (scheme == 3) {
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = data->R.row_ptr[i+1] - data->R.row_ptr[i];
             p[i] = 1/log2(p[i]+2);
@@ -238,7 +252,7 @@ void ImpProblem::set_weight(string scheme) {
             if (q[j] < 0)
               cout<<"Wrong with weight"<<endl;
         }
-    } else {
+    } else if (scheme == 0) {
         for(ImpInt i = 0; i < m; i++ ) {
             p[i] = param->w;
         }
@@ -325,7 +339,8 @@ void ImpProblem::print_epoch_info() {
 } 
 
 void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, ImpDouble w_p, vector<ImpDouble> w_q) {
-    ImpFloat lambda = param->lambda, a = param->a, w = param->w;
+    ImpFloat lambda = param->lambda, a = param->a;
+    //ImpFloat w = param->w;
     //ImpInt k = param->k;
     ImpDouble u_val = u[i];
     ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
@@ -750,14 +765,12 @@ void ImpProblem::solve() {
     vector<ImpInt> topks(6,0);
     topks[0] = 5; topks[1] = 10; topks[2] = 20;
     topks[3] = 40; topks[4] = 80; topks[5] = 100;
-    topks[0] = 1; topks[1] = 2; topks[2] = 3;
-    topks[3] = 4; topks[4] = 5; topks[5] = 10;
     print_header_info(topks);
-    set_weight("log");
+    set_weight();
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate_ndcg(topks);
+        validate(topks);
         print_epoch_info();
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
