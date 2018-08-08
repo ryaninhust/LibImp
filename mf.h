@@ -97,7 +97,7 @@ public:
 
     void initialize();
     void init_va_loss(ImpInt size);
-    void set_weight(const smat &R, const ImpInt m, vector<ImpDouble> &p);
+    void set_weight(const smat &R, const ImpInt m, vector<ImpDouble> &p, const ImpInt scheme);
     void solve();
     void update_R(ImpFloat *wt, ImpFloat *ht, bool add);
 
