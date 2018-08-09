@@ -751,7 +751,7 @@ void ImpProblem::solve() {
     print_header_info(topks);
 
     set_weight(data->R, data->m, p, -1);
-    set_weight(data->RT ,data->n, q, param->scheme);
+    set_weight(data->RT, data->n, q, param->scheme);
 
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
