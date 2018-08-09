@@ -25,9 +25,9 @@ class Parameter {
 
 public:
     ImpFloat lambda, w, a;
-    ImpInt nr_pass, k, nr_threads;
+    ImpInt nr_pass, k, nr_threads, scheme;
     string model_path, predict_path;
-    Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1) {};
+    Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1), scheme(-1) {};
 };
 
 struct smat {
@@ -48,7 +48,7 @@ public:
     ImpData(string file_name): file_name(file_name), l(0), m(0), n(0), a(0), SAMPLE_SIZE(0) {};
     ImpData(string file_name, ImpFloat a_): file_name(file_name), l(0), m(0),n(0), SAMPLE_SIZE(0) { a = a_;};
     ImpData(string file_name, ImpFloat a_, ImpInt sample_size): file_name(file_name), l(0), m(0),n(0) { a = a_; SAMPLE_SIZE = sample_size;};
-    void read();
+    void read(ImpInt scheme);
     void print_data_info();
     class Compare {
         public:

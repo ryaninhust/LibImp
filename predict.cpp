@@ -83,7 +83,7 @@ int main(int argc, char **argv)
         shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
         if (option.test)
         {
-            test_data->read();
+            test_data->read(0);
         }
         ImpProblem prob(data, option.param);
         prob.initialize();

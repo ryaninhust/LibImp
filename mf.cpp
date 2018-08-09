@@ -127,7 +127,7 @@ void ImpProblem::load() {
 
 }
 
-void ImpData::read() {
+void ImpData::read(ImpInt scheme) {
     string line;
     ifstream fs(file_name);
     while (getline(fs, line)) {
@@ -186,13 +186,29 @@ void ImpData::read() {
         idx++;
     }
 
-    ImpDouble sum = 0;
-    for (ImpLong j = 0; j < n; j++) {
-        counter[j] = 1-counter[j]/l_real;
-        sum += counter[j]
+    if (SAMPLE_SIZE > 0 ) {
+        if (scheme == 0) {
+            for (ImpLong j = 0; j < n; j++) {
+                counter[j] = counter[j];
+            }
+        } else if (scheme == 1) {
+            for (ImpLong j = 0; j < n; j++) {
+                counter[j] = 1/(counter[j]+1);
+            }
+        } else if (scheme == 2) {
+            for (ImpLong j = 0; j < n; j++) {
+                counter[j] = 1/log2(counter[j]+2);
+            }
+        } else if (scheme == 3) {
+            for (ImpLong j = 0; j < n; j++) {
+                counter[j] = 1-counter[j]/l_real;
+            }
+        } else if (scheme == -1) {
+            for (ImpLong j = 0; j < n; j++) {
+                counter[j] = 1;
+            }
+        }
     }
-    cout << sum << endl;
-    exit(1);
 
     discrete_distribution<ImpLong> q_dist(counter.begin(), counter.end());
     default_random_engine engine(0);

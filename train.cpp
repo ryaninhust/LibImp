@@ -52,6 +52,12 @@ string train_help()
     "-a <path>: set labels to the negatives (default 0)\n"
     "-c <threads>: set number of cores\n"
     "-k <rank>: set number of rank\n"
+    "-s set sample scheme (default -1)\n"
+    "   -- 0 occur proabability\n"
+    "   -- 1     1/(p+1)\n"
+    "   -- 2     1/log(p)\n"
+    "   -- 3     1 - p\n"
+    "   -- -1     uniform\n"
     );
 }
 
@@ -135,6 +141,15 @@ Option parse_option(int argc, char **argv)
                 throw invalid_argument("-c should be followed by a number");
             option.param->nr_threads = atof(argv[i]);
         }
+        else if(args[i].compare("-s") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("missing core numbers after -c");
+            i++;
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-c should be followed by a number");
+            option.param->scheme = atof(argv[i]);
+        }
         else if(args[i].compare("-m") == 0)
         {
             if(i == argc-1)
@@ -191,10 +206,10 @@ int main(int argc, char *argv[])
         shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path, option.param->a, 1);
         shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
 
-        data->read();
+        data->read(option.param->scheme);
 
         if (!test_data->file_name.empty()) {
-            test_data->read();
+            test_data->read(option.param->scheme);
         }
 
         ImpProblem prob(data, test_data, option.param);
