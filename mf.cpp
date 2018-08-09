@@ -201,7 +201,7 @@ void ImpData::read(ImpInt scheme) {
             }
         } else if (scheme == 3) {
             for (ImpLong j = 0; j < n; j++) {
-                counter[j] = 1-counter[j]/l_real;
+                counter[j] = 1-counter[j]/m;
             }
         } else if (scheme == -1) {
             for (ImpLong j = 0; j < n; j++) {
@@ -217,7 +217,6 @@ void ImpData::read(ImpInt scheme) {
         for(ImpInt i = 0; i < l/(SAMPLE_SIZE+1); i++ ) {
             ImpLong p_idx, q_idx;
             p_idx = rand()%m;
-            //q_idx = rand()%n;
             q_idx = q_dist(engine);
 
             ImpFloat val;
