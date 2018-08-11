@@ -43,7 +43,9 @@ string train_help()
     "usage: train [options] training_set_file test_set_file\n"
     "\n"
     "options:\n"
-    "-l <lambda_2>: set regularization coefficient on r regularizer (default 0.1)\n"
+    "-l <lambda_2>: set regularization coefficient on all regularizer (default 0.1)\n"
+    "-lu <lambda_2>: set regularization coefficient on user regularizer (default 0.1)\n"
+    "-li <lambda_2>: set regularization coefficient on item regularizer (default 0.1)\n"
     "-t <iter>: set number of iterations (default 20)\n"
     "-p <path>: set path to test set\n"
     "-r <path>: set path to save result\n"
@@ -86,7 +88,32 @@ Option parse_option(int argc, char **argv)
 
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-l should be followed by a number");
-            option.param->lambda = atof(argv[i]);
+            option.param->lambda_u = atof(argv[i]);
+            option.param->lambda_i = atof(argv[i]);
+        }
+        else if(args[i].compare("-lu") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify l\
+                                        regularization coefficient\
+                                        after -l");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-l should be followed by a number");
+            option.param->lambda_u = atof(argv[i]);
+        }
+        else if(args[i].compare("-li") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify l\
+                                        regularization coefficient\
+                                        after -l");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-l should be followed by a number");
+            option.param->lambda_i = atof(argv[i]);
         }
         else if(args[i].compare("-k") == 0)
         {

@@ -319,8 +319,8 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, const ImpDouble w_p, const vector<ImpDouble> &w_q) {
-    ImpFloat lambda = param->lambda, a = param->a;
+void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFloat *u, ImpFloat *v, const ImpFloat lambda, const ImpDouble w_p, const vector<ImpDouble> &w_q) {
+    ImpFloat a = param->a;
     //ImpFloat w = param->w;
     //ImpInt k = param->k;
     ImpDouble u_val = u[i];
@@ -533,7 +533,7 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
 ImpDouble ImpProblem::cal_reg() {
     ImpInt k = param->k;
     ImpLong m = data->m, n = data->n;
-    ImpDouble reg = 0, lambda = param->lambda;
+    ImpDouble reg = 0, lambda_u = param->lambda_u, lambda_i = param->lambda_i;
     smat &R = data->R;
     smat &RT = data->RT;
 
@@ -543,7 +543,7 @@ ImpDouble ImpProblem::cal_reg() {
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
             inner += w[d] * w[d];
-        reg += nnz*lambda*inner;
+        reg += nnz*lambda_i*inner;
     }
 
     for (ImpLong j = 0; j < n; j++) {
@@ -552,7 +552,7 @@ ImpDouble ImpProblem::cal_reg() {
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
             inner += h[d]*h[d];
-        reg += nnz*lambda*inner;
+        reg += nnz*lambda_u*inner;
     }
     return reg;
 }
@@ -651,7 +651,7 @@ void ImpProblem::update_coordinates() {
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
-                    update(data->RT, j, gamma_w, v, u, q[j] ,p);
+                    update(data->RT, j, gamma_w, v, u, param->lambda_i, q[j] ,p);
             }
             update_time += omp_get_wtime() - time;
             //cblas_dcopy(n, v, 1, vt, k);
@@ -667,7 +667,7 @@ void ImpProblem::update_coordinates() {
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
-                    update(data->R, i, gamma_h, u, v,p[i],q);
+                    update(data->R, i, gamma_h, u, v, param->lambda_u, p[i], q);
             }
             update_time += omp_get_wtime() - time;
             //cblas_dcopy(m, u, 1, ut, k);
