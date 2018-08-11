@@ -43,8 +43,11 @@ string train_help()
     "usage: train [options] training_set_file test_set_file\n"
     "\n"
     "options:\n"
-    "-l <lambda_2>: set regularization coefficient on r regularizer (default 0.1)\n"
+    "-l <lambda_2>: set regularization coefficient on all regularizer (default 0.1)\n"
+    "-li <lambda_2>: set regularization coefficient on item regularizer (default 0.1)\n"
+    "-lu <lambda_2>: set regularization coefficient on user regularizer (default 0.1)\n"
     "-t <iter>: set number of iterations (default 20)\n"
+    "-n <size>: set sample number of negative instance (default 1)\n"
     "-p <path>: set path to test set\n"
     "-r <path>: set path to save result\n"
     "-m <path>: set path to save model\n"
@@ -87,7 +90,32 @@ Option parse_option(int argc, char **argv)
 
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-l should be followed by a number");
-            option.param->lambda = atof(argv[i]);
+            option.param->lambda_u = atof(argv[i]);
+            option.param->lambda_i = atof(argv[i]);
+        }
+        else if(args[i].compare("-lu") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify l\
+                                        regularization coefficient\
+                                        after -l");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-l should be followed by a number");
+            option.param->lambda_u = atof(argv[i]);
+        }
+        else if(args[i].compare("-li") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify l\
+                                        regularization coefficient\
+                                        after -l");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-l should be followed by a number");
+            option.param->lambda_i = atof(argv[i]);
         }
         else if(args[i].compare("-k") == 0)
         {
@@ -109,6 +137,17 @@ Option parse_option(int argc, char **argv)
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-t should be followed by a number");
             option.param->nr_pass = atoi(argv[i]);
+        }
+        else if(args[i].compare("-n") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify max number of\
+                                        iterations after -t");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-t should be followed by a number");
+            option.param->sample_size = atoi(argv[i]);
         }
         else if(args[i].compare("-w") == 0)
         {
@@ -203,7 +242,7 @@ int main(int argc, char *argv[])
         Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
-        shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path, option.param->a, 1);
+        shared_ptr<ImpData> data = make_shared<ImpData>(option.data_path, option.param->a, option.param->sample_size);
         shared_ptr<ImpData> test_data = make_shared<ImpData>(option.test_path);
 
         data->read(option.param->scheme);

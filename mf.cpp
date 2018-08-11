@@ -323,8 +323,8 @@ void ImpProblem::print_epoch_info() {
     cout << endl;
 } 
 
-void ImpProblem::update(const smat &R, ImpLong i, ImpFloat *u, ImpFloat *v) {
-    ImpFloat lambda = param->lambda;
+void ImpProblem::update(const smat &R, ImpLong i, ImpFloat *u, ImpFloat *v, const ImpFloat lambda)  {
+    //ImpFloat lambda = param->lambda;
     //ImpInt k = param->k;
     ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
@@ -538,7 +538,7 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
 ImpDouble ImpProblem::cal_reg() {
     ImpInt k = param->k;
     ImpLong m = data->m, n = data->n;
-    ImpDouble reg = 0, lambda = param->lambda;
+    ImpDouble reg = 0, lambda_i = param->lambda_i, lambda_u = param->lambda_u;
     smat &R = data->R;
     smat &RT = data->RT;
 
@@ -548,7 +548,7 @@ ImpDouble ImpProblem::cal_reg() {
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
             inner += w[d*m] * w[d*m];
-        reg += nnz*lambda*inner;
+        reg += nnz*lambda_u*inner;
     }
 
     for (ImpLong j = 0; j < n; j++) {
@@ -557,7 +557,7 @@ ImpDouble ImpProblem::cal_reg() {
         ImpDouble inner = 0.0;
         for (ImpInt d = 0; d < k ; d++)
             inner += h[d*n]*h[d*n];
-        reg += nnz*lambda*inner;
+        reg += nnz*lambda_i*inner;
     }
     return reg;
 }
@@ -649,12 +649,12 @@ void ImpProblem::update_coordinates() {
 #pragma omp parallel for schedule(guided)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
-                    update(data->RT, j, v, u);
+                    update(data->RT, j, v, u, param->lambda_i);
             }
 #pragma omp parallel for schedule(guided)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
-                    update(data->R, i, u, v);
+                    update(data->R, i, u, v, param->lambda_u);
             }
         }
         update_time += omp_get_wtime() -time;

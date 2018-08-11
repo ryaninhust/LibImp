@@ -24,10 +24,10 @@ typedef long long int ImpLong;
 class Parameter {
 
 public:
-    ImpFloat lambda, w, a;
-    ImpInt nr_pass, k, nr_threads, scheme;
+    ImpFloat lambda_u, lambda_i, w, a;
+    ImpInt nr_pass, k, nr_threads, scheme, sample_size;
     string model_path, predict_path;
-    Parameter():lambda(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1), scheme(-1) {};
+    Parameter():lambda_u(0.1), lambda_i(0.1), w(1), a(0), nr_pass(20), k(10),nr_threads(1), scheme(-1), sample_size(1){};
 };
 
 struct smat {
@@ -89,7 +89,7 @@ public:
     ImpDouble cal_reg();
     ImpDouble cal_tr_loss(ImpLong &l, smat &R);
 
-    void update(const smat &R, ImpLong i, ImpDouble *u, ImpDouble *v);
+    void update(const smat &R, ImpLong i, ImpDouble *u, ImpDouble *v, const ImpFloat lambda);
     void save();
     void load();
 
