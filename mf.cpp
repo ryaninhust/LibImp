@@ -268,7 +268,7 @@ void ImpProblem::initialize() {
 
 
     default_random_engine engine(0);
-    uniform_real_distribution<ImpFloat> distribution(0, 1.0/sqrt(k));
+    uniform_real_distribution<ImpFloat> distribution(-1.0/sqrt(k), 1.0/sqrt(k));
     for (ImpInt d = 0; d < k; d++)
     {
         for (ImpLong j = 0; j < m; j++) {
@@ -340,40 +340,30 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     u[i] = new_u_val;
 }
 
-ImpDouble ImpProblem::cal_loss(ImpLong &l, smat &R) {
+ImpDouble ImpProblem::cal_loss(smat &R) {
     ImpInt k = param->k;
-    ImpDouble loss = 0, a = param->a;
+    ImpDouble loss = 0;
     ImpLong m = data->m, n = data->n;
-#pragma omp parallel for schedule(static) reduction(+:loss)
+#pragma omp parallel for schedule(dynamic) reduction(+:loss)
     for (ImpLong i = 0; i < m; i++) {
-        ImpDouble *w = W+i*k;
+        ImpDouble *w = WT+i;
         for(ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
             if (R.col_idx[idx] > data->n)
                 continue;
-            ImpDouble *h = H+ R.col_idx[idx]*k ;
+            ImpDouble *h = HT + R.col_idx[idx] ;
             ImpDouble r = 0;
             for (ImpInt d = 0; d < k; d++)
-                r += w[d] * h[d];
-            loss += R.val[idx]*R.val[idx];
-            loss -= param->w*(a-r)*(a-r);
-        }
-    }
-#pragma omp parallel for schedule(static) reduction(+:loss)
-    for (ImpLong i = 0; i < m; i++) {
-        ImpDouble *w = W+i*k;
-        for (ImpLong j = 0; j < n; j++) {
-            ImpDouble *h = H+j*k;
-            ImpDouble r = 0.0;
-            for (ImpInt d = 0; d < k; d++)
-                r += w[d] * h[d];
-            loss += param->w*(a-r)*(a-r);
+                r += w[d*m] * h[d*n];
+            loss += (R.val[idx]-r)*(R.val[idx]-r);
         }
     }
     return loss;
 }
 
-ImpDouble ImpProblem::cal_tr_loss(ImpLong &l, smat &R) {
+ImpDouble ImpProblem::cal_tr_loss() {
     ImpDouble loss = 0;
+    const smat &R = data->R;
+    const ImpLong l = data->l;
 #pragma omp parallel for schedule(static) reduction(+:loss)
     for (ImpLong idx = 0; idx < l; idx++)
         loss += R.val[idx]*R.val[idx];
@@ -648,7 +638,7 @@ void ImpProblem::update_coordinates() {
             cache(WT, H, gamma_w, u, m, n, p);
             cache_time += omp_get_wtime() - time;
             time = omp_get_wtime();
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(dynamic)
             for (ImpLong j = 0; j < n; j++) {
                 if (data->RT.row_ptr[j+1]!=data->RT.row_ptr[j])
                     update(data->RT, j, gamma_w, v, u, param->lambda_i, q[j] ,p);
@@ -664,7 +654,7 @@ void ImpProblem::update_coordinates() {
             cache(HT, W, gamma_h, v, n, m, q);
             cache_time += omp_get_wtime() - time;
             time = omp_get_wtime();
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(dynamic)
             for (ImpLong i = 0; i < m; i++) {
                 if (data->R.row_ptr[i+1]!=data->R.row_ptr[i])
                     update(data->R, i, gamma_h, u, v, param->lambda_u, p[i], q);
@@ -756,10 +746,13 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate(topks);
-        print_epoch_info();
+//        validate_ndcg(topks);
+//        print_epoch_info();
+        cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
+        cout.width(13);
+        cout << setprecision(3) << sqrt(cal_loss(test_data->R)/test_data->l) << fixed << endl;
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
-    save();
+    //save();
 }
 
