@@ -15,7 +15,7 @@
 
 using namespace std;
 
-
+#define INF HUGE_VAL
 typedef double ImpFloat;
 typedef double ImpDouble;
 typedef long long int ImpInt;
@@ -113,6 +113,6 @@ public:
     void print_epoch_info();
     void print_header_info(vector<ImpInt> &topks);
 
-    bool is_hit(const smat &R, ImpLong i, ImpLong argmax);
+    ImpDouble is_hit(const smat &R, ImpLong i, ImpLong argmax);
 };
 
