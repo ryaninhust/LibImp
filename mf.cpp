@@ -340,10 +340,11 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     u[i] = new_u_val;
 }
 
-ImpDouble ImpProblem::cal_loss(smat &R) {
+ImpDouble ImpProblem::cal_te_loss() {
     ImpInt k = param->k;
     ImpDouble loss = 0;
-    ImpLong m = data->m, n = data->n;
+    ImpLong m = test_data->m, n = test_data->n;
+    const smat &R = test_data->R;
 #pragma omp parallel for schedule(dynamic) reduction(+:loss)
     for (ImpLong i = 0; i < m; i++) {
         ImpDouble *w = WT+i;
@@ -738,7 +739,7 @@ void ImpProblem::solve() {
     topks[0] = 5; topks[1] = 10; topks[2] = 20;
     topks[3] = 40; topks[4] = 80; topks[5] = 100;
 
-    print_header_info(topks);
+    //print_header_info(topks);
 
     set_weight(data->R, data->m, p, -1);
     set_weight(data->RT, data->n, q, param->scheme);
@@ -750,7 +751,7 @@ void ImpProblem::solve() {
 //        print_epoch_info();
         cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
         cout.width(13);
-        cout << setprecision(3) << sqrt(cal_loss(test_data->R)/test_data->l) << fixed << endl;
+        cout << setprecision(3) << sqrt(cal_te_loss()/test_data->l) << fixed << endl;
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
     //save();

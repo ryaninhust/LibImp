@@ -86,7 +86,7 @@ public:
     vector<ImpFloat> gamma_w, gamma_h;
 
 
-    ImpDouble cal_loss(smat &R);
+    ImpDouble cal_te_loss();
     ImpDouble cal_reg();
 
     ImpDouble cal_tr_loss();
