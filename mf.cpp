@@ -1,6 +1,6 @@
 #include "mf.h"
 #include <cstring>
-#define MIN_Z -10000;
+#define MIN_Z -INF;
 #include <immintrin.h>
 int ALIGNByte = 32;
 
@@ -450,13 +450,40 @@ void ImpProblem::predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z) {
     }
 }
 
-bool ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
+ImpDouble ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpLong j = R.col_idx[idx];
         if (j == argmax)
-            return true;
+            return R.val[idx];
     }
-    return false;
+    return -INF;
+}
+
+void ImpProblem::init_idcg(const ImpLong ii, vector<ImpDouble> & idcg, const vector<ImpInt> &topks){
+    ImpLong L = (ImpLong) test_data->R.row_ptr[ii+1]- test_data->R.row_ptr[ii];
+    vector<pair<ImpDouble, ImpLong>> score;
+    for(ImpLong i = 0; i < L; i++){
+        ImpLong col_idx = test_data->R.col_idx[test_data->R.row_ptr[ii] + i]; 
+        ImpDouble val = test_data->R.val[test_data->R.row_ptr[ii] + i];
+        score.push_back( pair<ImpDouble, ImpLong>(val, col_idx) );
+    }
+    sort(score.rbegin(), score.rend());
+
+    ImpLong i = 0, state = 0;
+    while(state < int(topks.size()) ) {
+        while(i < topks[state]) {
+            if( i >= L )
+                break;
+            ImpLong idx = score[i].second;
+            if (is_hit(data->R, ii, idx) != -INF){
+                i++;
+                continue;
+            }
+            idcg[state] += (pow(2.0, score[i].first) - 1.0)/log2(i+2);
+            i++;
+        }
+        state++;
+    }
 }
 
 ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs) {
@@ -464,23 +491,26 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     ImpInt valid_count = 0;
     vector<double> dcg(topks.size(),0.0);
     vector<double> idcg(topks.size(),0.0);
+    init_idcg(i, idcg, topks);
     ImpInt num_th = omp_get_thread_num();
+
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(data->R, i, argmax)) {
+            if (is_hit(data->R, i, argmax) != -INF) {
                 Z[argmax] = MIN_Z;
                 continue;
             }
-            if (is_hit(test_data->R, i, argmax))
-                dcg[state] += 1.0/log2(valid_count+2);
-            if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
-                idcg[state] += 1.0/log2(valid_count+2);
+            double hit_val = is_hit(test_data->R, i, argmax);
+            
+            if ( hit_val != -INF)
+                dcg[state] += (pow(2.0, hit_val) - 1.0)/log2(valid_count+2);
             valid_count++;
             Z[argmax] = MIN_Z;
         }
         state++;
     }
+
     for (ImpInt i = 1; i < int(topks.size()); i++) {
         dcg[i] += dcg[i-1];
         idcg[i] += idcg[i-1];
@@ -501,7 +531,7 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(test_data->R, i, argmax)) {
+            if (is_hit(test_data->R, i, argmax) != -INF) {
                 hit_count[state]++;
             }
             valid_count++;
@@ -736,10 +766,10 @@ void ImpProblem::solve() {
     init_va_loss(6);
 
     vector<ImpInt> topks(6,0);
-    topks[0] = 5; topks[1] = 10; topks[2] = 20;
-    topks[3] = 40; topks[4] = 80; topks[5] = 100;
+    topks[0] = 1; topks[1] = 2; topks[2] = 3;
+    topks[3] = 4; topks[4] = 5; topks[5] = 6;
 
-    //print_header_info(topks);
+    print_header_info(topks);
 
     set_weight(data->R, data->m, p, -1);
     set_weight(data->RT, data->n, q, param->scheme);
@@ -747,11 +777,11 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-//        validate_ndcg(topks);
-//        print_epoch_info();
-        cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
-        cout.width(13);
-        cout << setprecision(3) << sqrt(cal_te_loss()/test_data->l) << fixed << endl;
+        validate_ndcg(topks);
+        print_epoch_info();
+        //cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
+        //cout.width(13);
+        //cout << setprecision(3) << sqrt(cal_te_loss()/test_data->l) << fixed << endl;
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
     //save();
