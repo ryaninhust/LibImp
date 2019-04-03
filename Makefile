@@ -11,6 +11,7 @@ CXXFLAGS = -Wall -O3 -std=c++0x -march=native
 MKLFLAGS = -m64 -I${MKLROOT}/include -Wl,--no-as-needed -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lpthread -lm -ldl
 # comment the following flags if you do not want to use OpenMP
 DFLAG += -DUSEOMP
+#DFLAG += -D DEBUG
 CXXFLAGS += -fopenmp
 #CXXAGS += $(MKLFLAGS)
 
@@ -20,9 +21,9 @@ predict: predict.cpp mf.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 train: train.cpp mf.o
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS)  $(DFLAG) -o $@ $^
 
-ffm.o: mf.cpp mf.h
+mf.o: mf.cpp mf.h
 	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $<
 
 clean:

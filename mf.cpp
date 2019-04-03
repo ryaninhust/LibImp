@@ -1,6 +1,6 @@
 #include "mf.h"
 #include <cstring>
-#define MIN_Z -10000;
+#define MIN_Z -INF;
 #include <immintrin.h>
 int ALIGNByte = 32;
 
@@ -141,12 +141,19 @@ void ImpData::read() {
     fs.close();
     fs.clear();
     fs.open(file_name);
+
     R.row_ptr.resize(m+1);
     RT.row_ptr.resize(n+1);
+
     R.col_idx.resize(l);
     RT.col_idx.resize(l);
+
     R.val.resize(l);
     RT.val.resize(l);
+
+    R.p_scores.resize(l);
+    RT.p_scores.resize(l);
+
     vector<ImpLong> perm;
     perm.resize(l);
     ImpLong idx = 0;
@@ -157,14 +164,21 @@ void ImpData::read() {
         iss >> p_idx;
         iss >> q_idx;
 
-        ImpFloat val;
+        ImpDouble val;
         iss >> val;
+
+        ImpDouble p_score;
+        iss >> p_score;
 
         R.row_ptr[p_idx+1]++;
         RT.row_ptr[q_idx+1]++;
+
         R.col_idx[idx]  = p_idx;
         RT.col_idx[idx] = q_idx;
+
         RT.val[idx] = val;
+        RT.p_scores[idx] = p_score;
+
         perm[idx] = idx;
         idx++;
     }
@@ -173,6 +187,7 @@ void ImpData::read() {
     for(idx = 0; idx < l; idx++ ) {
        R.col_idx[idx] = RT.col_idx[perm[idx]];
        R.val[idx] = RT.val[perm[idx]];
+       R.p_scores[idx] = RT.p_scores[perm[idx]];
     }
     for(ImpLong i = 1; i < m+1; i++) {
         R.row_ptr[i] += R.row_ptr[i-1];
@@ -185,6 +200,7 @@ void ImpData::read() {
             ImpLong c = R.col_idx[j];
             RT.col_idx[RT.row_ptr[c]] = i;
             RT.val[RT.row_ptr[c]] = R.val[j];
+            RT.p_scores[RT.row_ptr[c]] = R.p_scores[j];
             RT.row_ptr[c]++;
         }
     }
@@ -326,17 +342,20 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     ImpDouble u_val = u[i];
     ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
-        ImpDouble r = R.val[idx];
-        ImpLong j = R.col_idx[idx];
-        ImpDouble v_val = v[j];
-        g += ((1-w_p*w_q[j])*r+w_p*w_q[j]*(1-a))*v_val;
-        h += (1-w_p*w_q[j])*v_val*v_val;
+        const ImpDouble r = R.val[idx];
+        const ImpLong j = R.col_idx[idx];
+
+        const ImpDouble v_val = v[j];
+        const ImpDouble ps = w_p == 0? R.p_scores[j]: 1;
+
+        g += ((1-w_p*w_q[j])*r/ps+w_p*w_q[j]*(1-a))*v_val;
+        h += (1-w_p*w_q[j])*v_val*v_val/ps;
+
     }
     h += w_p*sq;
     g += w_p*(a*sum-gamma[i]+u_val*sq);
 
     ImpDouble new_u_val = g/h;
-    //ut[i*k] = new_u_val;
     u[i] = new_u_val;
 }
 
@@ -450,13 +469,13 @@ void ImpProblem::predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z) {
     }
 }
 
-bool ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
+ImpDouble ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpLong j = R.col_idx[idx];
         if (j == argmax)
-            return true;
+            return R.val[j];
     }
-    return false;
+    return -INF;
 }
 
 ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs) {
@@ -465,17 +484,24 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     vector<double> dcg(topks.size(),0.0);
     vector<double> idcg(topks.size(),0.0);
     ImpInt num_th = omp_get_thread_num();
+    vector<double> score((ImpLong) test_data->R.row_ptr[i+1]- test_data->R.row_ptr[i], 0);
+    for(ImpLong j = 0; j < (ImpLong) score.size(); j++)
+        score[j] = test_data->R.val[test_data->R.row_ptr[i] + j];
+    sort(score.rbegin(), score.rend());
+
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(data->R, i, argmax)) {
+            if (is_hit(data->R, i, argmax) != -INF) {
                 Z[argmax] = MIN_Z;
                 continue;
             }
-            if (is_hit(test_data->R, i, argmax))
-                dcg[state] += 1.0/log2(valid_count+2);
+            double hit_val = is_hit(test_data->R, i, argmax);
+            if ( hit_val != -INF){
+                dcg[state] += (pow(2.0, hit_val) - 1.0)/log2(valid_count+2);
+            }
             if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
-                idcg[state] += 1.0/log2(valid_count+2);
+                idcg[state] += (pow(2.0, score[valid_count]) - 1.0)/log2(valid_count+2);
             valid_count++;
             Z[argmax] = MIN_Z;
         }
@@ -501,7 +527,7 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(test_data->R, i, argmax)) {
+            if (is_hit(test_data->R, i, argmax) != -INF) {
                 hit_count[state]++;
             }
             valid_count++;
@@ -733,13 +759,13 @@ void ImpProblem::cache(ImpDouble* WT_, ImpDouble* H_, vector<ImpFloat> &gamma, I
 
 void ImpProblem::solve() {
     cout<<"Using "<<param->nr_threads<<" threads"<<endl;
-    init_va_loss(6);
+    init_va_loss(5);
 
-    vector<ImpInt> topks(6,0);
-    topks[0] = 5; topks[1] = 10; topks[2] = 20;
-    topks[3] = 40; topks[4] = 80; topks[5] = 100;
+    vector<ImpInt> topks(5,0);
+    topks[0] = 1; topks[1] = 2; topks[2] = 3;
+    topks[3] = 4; topks[4] = 5;
 
-    //print_header_info(topks);
+    print_header_info(topks);
 
     set_weight(data->R, data->m, p, -1);
     set_weight(data->RT, data->n, q, param->scheme);
@@ -747,11 +773,11 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-//        validate_ndcg(topks);
-//        print_epoch_info();
-        cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
-        cout.width(13);
-        cout << setprecision(3) << sqrt(cal_te_loss()/test_data->l) << fixed << endl;
+        validate_ndcg(topks);
+        print_epoch_info();
+        //cout << setprecision(3) << sqrt(cal_tr_loss()/data->l) << fixed;
+        //cout.width(13);
+        //cout << setprecision(3) << sqrt(cal_te_loss()/test_data->l) << fixed << endl;
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
     //save();
