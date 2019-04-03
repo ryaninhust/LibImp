@@ -34,6 +34,7 @@ struct smat {
     vector<ImpLong> row_ptr;
     vector<ImpLong> col_idx;
     vector<ImpDouble> val;
+    vector<ImpDouble> p_scores;
 };
 
 class ImpData {
