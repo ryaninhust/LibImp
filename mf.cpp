@@ -473,9 +473,36 @@ ImpDouble ImpProblem::is_hit(const smat &R, ImpLong i, ImpLong argmax) {
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpLong j = R.col_idx[idx];
         if (j == argmax)
-            return R.val[j];
+            return R.val[idx];
     }
     return -INF;
+}
+
+void ImpProblem::init_idcg(const ImpLong ii, vector<ImpDouble> & idcg, const vector<ImpInt> &topks){
+    ImpLong L = (ImpLong) test_data->R.row_ptr[ii+1]- test_data->R.row_ptr[ii];
+    vector<pair<ImpDouble, ImpLong>> score;
+    for(ImpLong i = 0; i < L; i++){
+        ImpLong col_idx = test_data->R.col_idx[test_data->R.row_ptr[ii] + i]; 
+        ImpDouble val = test_data->R.val[test_data->R.row_ptr[ii] + i];
+        score.push_back( pair<ImpDouble, ImpLong>(val, col_idx) );
+    }
+    sort(score.rbegin(), score.rend());
+
+    ImpLong i = 0, state = 0;
+    while(state < int(topks.size()) ) {
+        while(i < topks[state]) {
+            if( i >= L )
+                break;
+            ImpLong idx = score[i].second;
+            if (is_hit(data->R, ii, idx) != -INF){
+                i++;
+                continue;
+            }
+            idcg[state] += (pow(2.0, score[i].first) - 1.0)/log2(i+2);
+            i++;
+        }
+        state++;
+    }
 }
 
 ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs) {
@@ -483,11 +510,8 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     ImpInt valid_count = 0;
     vector<double> dcg(topks.size(),0.0);
     vector<double> idcg(topks.size(),0.0);
+    init_idcg(i, idcg, topks);
     ImpInt num_th = omp_get_thread_num();
-    vector<double> score((ImpLong) test_data->R.row_ptr[i+1]- test_data->R.row_ptr[i], 0);
-    for(ImpLong j = 0; j < (ImpLong) score.size(); j++)
-        score[j] = test_data->R.val[test_data->R.row_ptr[i] + j];
-    sort(score.rbegin(), score.rend());
 
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
@@ -497,16 +521,15 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
                 continue;
             }
             double hit_val = is_hit(test_data->R, i, argmax);
-            if ( hit_val != -INF){
+            
+            if ( hit_val != -INF)
                 dcg[state] += (pow(2.0, hit_val) - 1.0)/log2(valid_count+2);
-            }
-            if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
-                idcg[state] += (pow(2.0, score[valid_count]) - 1.0)/log2(valid_count+2);
             valid_count++;
             Z[argmax] = MIN_Z;
         }
         state++;
     }
+
     for (ImpInt i = 1; i < int(topks.size()); i++) {
         dcg[i] += dcg[i-1];
         idcg[i] += idcg[i-1];

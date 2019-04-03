@@ -106,6 +106,7 @@ public:
     void validate_ndcg(const vector<ImpInt> &topks);
     void predict_candidates(const ImpFloat* w, vector<ImpFloat> &Z);
     ImpLong precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<ImpLong> &hit_counts);
+    void init_idcg(const ImpLong ii, vector<ImpDouble> &idcg,const vector<ImpInt> &topks);
     ImpDouble ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt> &topks, vector<double> &ndcgs);
     
     void cache(ImpDouble* WT, ImpDouble* H, vector<ImpFloat> &gamma, ImpDouble *ut, ImpLong m, ImpLong n, const vector<ImpDouble> &w_q);
