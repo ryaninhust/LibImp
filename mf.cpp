@@ -301,7 +301,7 @@ void ImpProblem::print_header_info(vector<ImpInt> &topks) {
     if (!test_data->file_name.empty()) {
         for (ImpInt i = 0; i < ImpInt(va_loss.size()); i++ ) {
             cout.width(12);
-            cout << "va_p@" << topks[i];
+            cout << "va@" << topks[i];
         }
     }
     cout << endl;
@@ -477,10 +477,6 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
-            if (is_hit(data->R, i, argmax)) {
-                Z[argmax] = MIN_Z;
-                continue;
-            }
             if (is_hit(test_data->R, i, argmax))
                 dcg[state] += 1.0/log2(valid_count+2);
             if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
@@ -745,8 +741,8 @@ void ImpProblem::solve() {
     init_va_loss(6);
 
     vector<ImpInt> topks(6,0);
-    topks[0] = 5; topks[1] = 10; topks[2] = 20;
-    topks[3] = 40; topks[4] = 80; topks[5] = 100;
+    topks[0] = 1; topks[1] = 2; topks[2] = 3;
+    topks[3] = 4; topks[4] = 5; topks[5] = 10;
 
     print_header_info(topks);
 
@@ -756,7 +752,7 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate(topks);
+        validate_ndcg(topks);
         print_epoch_info();
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
