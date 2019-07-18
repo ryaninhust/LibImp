@@ -324,7 +324,8 @@ void ImpProblem::update(const smat &R, ImpLong i, vector<ImpFloat> &gamma, ImpFl
     //ImpFloat w = param->w;
     //ImpInt k = param->k;
     ImpDouble u_val = u[i];
-    ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
+    //ImpDouble h = lambda*(R.row_ptr[i+1] - R.row_ptr[i]), g = 0;
+    ImpDouble h = lambda, g = 0;
     for (ImpLong idx = R.row_ptr[i]; idx < R.row_ptr[i+1]; idx++) {
         ImpDouble r = R.val[idx];
         ImpLong j = R.col_idx[idx];
@@ -410,7 +411,7 @@ void ImpProblem::validate(const vector<ImpInt> &topks) {
     }
 
     for (ImpInt i = 0; i < int(topks.size()); i++) {
-        va_loss[i] /= double(valid_samples*topks[i]);
+        va_loss[i] /= double(valid_samples);
     }
 }
 
@@ -477,6 +478,10 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(data->R, i, argmax)) {
+                Z[argmax] = MIN_Z;
+               continue;
+            }
             if (is_hit(test_data->R, i, argmax))
                 dcg[state] += 1.0/log2(valid_count+2);
             if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
@@ -506,6 +511,10 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(data->R, i, argmax)) {
+                Z[argmax] = MIN_Z;
+               continue;
+            }
             if (is_hit(test_data->R, i, argmax)) {
                 hit_count[state]++;
             }
@@ -752,10 +761,12 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
+        if (t % 4 == 0) {
         validate_ndcg(topks);
         print_epoch_info();
+        }
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
-    save();
+    //save();
 }
 
