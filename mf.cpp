@@ -477,6 +477,10 @@ ImpDouble ImpProblem::ndcg_k(vector<ImpFloat> &Z, ImpLong i, const vector<ImpInt
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(data->R, i, argmax)) {
+                Z[argmax] = MIN_Z;
+               continue;
+            }
             if (is_hit(test_data->R, i, argmax))
                 dcg[state] += 1.0/log2(valid_count+2);
             if (test_data->R.row_ptr[i+1] - test_data->R.row_ptr[i] > valid_count)
@@ -506,6 +510,10 @@ ImpLong ImpProblem::precision_k(vector<ImpFloat> &Z, ImpLong i, const vector<Imp
     while(state < int(topks.size()) ) {
         while(valid_count < topks[state]) {
             ImpLong argmax = distance(Z.begin(), max_element(Z.begin(), Z.end()));
+            if (is_hit(data->R, i, argmax)) {
+                Z[argmax] = MIN_Z;
+               continue;
+            }
             if (is_hit(test_data->R, i, argmax)) {
                 hit_count[state]++;
             }
@@ -752,7 +760,7 @@ void ImpProblem::solve() {
     double time = omp_get_wtime();
     for (t = 0; t < param->nr_pass; t++) {
         update_coordinates();
-        validate_ndcg(topks);
+        validate(topks);
         print_epoch_info();
     }
     cout<<"Training Time: "<< omp_get_wtime() - time <<endl;
